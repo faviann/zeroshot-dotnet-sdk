@@ -1,4 +1,24 @@
 #nullable enable
+Zeroshot.IForceStopFailure
+Zeroshot.IForceStopFailure.Attempt.get -> Zeroshot.Native.NativeAttempt<Zeroshot.Native.Contracts.RunForceResult!>!
+Zeroshot.IForceStopFailure.Run.get -> Zeroshot.Run!
+Zeroshot.IRunWaitFailure
+Zeroshot.IRunWaitFailure.Evidence.get -> Zeroshot.RunWaitEvidence!
+Zeroshot.IRunWaitFailure.ForceAttempt.get -> Zeroshot.Native.NativeAttempt<Zeroshot.Native.Contracts.RunForceResult!>?
+Zeroshot.IRunWaitFailure.Run.get -> Zeroshot.Run!
+Zeroshot.Native.NativeDeviceTokenProblem
+Zeroshot.Native.NativeDeviceTokenProblem.Error.get -> Zeroshot.Native.Contracts.DeviceTokenError
+Zeroshot.Native.NativeHttpException.Problem.get -> Zeroshot.Native.NativeHttpProblem?
+Zeroshot.Native.NativeHttpProblem
+Zeroshot.Native.NativeHttpProblem.Code.get -> string!
+Zeroshot.Native.NativeRunHistoryProblem
+Zeroshot.Native.NativeRunHistoryProblem.Category.get -> Zeroshot.Native.Contracts.RunHistoryProblemCode?
+Zeroshot.Native.NativeRunHistoryProblem.Details.get -> System.Text.Json.JsonElement?
+Zeroshot.Native.NativeRunHistoryProblem.Message.get -> string!
+Zeroshot.Native.NativeTargetProblem
+Zeroshot.Native.NativeTargetProblem.Body.get -> Zeroshot.Native.Contracts.TargetHttpProblem!
+Zeroshot.Native.NativeUiProblem
+Zeroshot.Native.NativeUiProblem.Body.get -> Zeroshot.Native.Contracts.UiProblem!
 abstract Zeroshot.Native.Contracts.NativeContract.<Clone>$() -> Zeroshot.Native.Contracts.NativeContract!
 abstract Zeroshot.Native.Contracts.NativeString.<Clone>$() -> Zeroshot.Native.Contracts.NativeString!
 abstract Zeroshot.Native.DashboardRunEvent.<Clone>$() -> Zeroshot.Native.DashboardRunEvent!
@@ -2267,7 +2287,6 @@ Zeroshot.Native.Contracts.AdmittedRunStatus
 Zeroshot.Native.Contracts.AdmittedRunStatus.AdmittedRunStatus() -> void
 Zeroshot.Native.Contracts.AdmittedRunStatus.Equals(Zeroshot.Native.Contracts.AdmittedRunStatus? other) -> bool
 Zeroshot.Native.Contracts.AgentAttachEvent
-Zeroshot.Native.Contracts.AgentAttachEvent.AgentAttachEvent() -> void
 Zeroshot.Native.Contracts.AgentAttachEvent.AgentAttachEvent(Zeroshot.Native.Contracts.AgentAttachEvent! original) -> void
 Zeroshot.Native.Contracts.AgentAttachEventNotification
 Zeroshot.Native.Contracts.AgentAttachEventNotification.AgentAttachEventNotification() -> void
@@ -2650,7 +2669,6 @@ Zeroshot.Native.Contracts.DashboardAgentWorker.Equals(Zeroshot.Native.Contracts.
 Zeroshot.Native.Contracts.DashboardAgentWorker.RuntimeBinding.get -> System.Text.Json.JsonElement
 Zeroshot.Native.Contracts.DashboardAgentWorker.RuntimeBinding.init -> void
 Zeroshot.Native.Contracts.DashboardAuthoringAction
-Zeroshot.Native.Contracts.DashboardAuthoringAction.DashboardAuthoringAction() -> void
 Zeroshot.Native.Contracts.DashboardAuthoringAction.DashboardAuthoringAction(Zeroshot.Native.Contracts.DashboardAuthoringAction! original) -> void
 Zeroshot.Native.Contracts.DashboardAuthoringDraft
 Zeroshot.Native.Contracts.DashboardAuthoringDraft.DashboardAuthoringDraft() -> void
@@ -2682,10 +2700,8 @@ Zeroshot.Native.Contracts.DashboardBootstrap.Workers.init -> void
 Zeroshot.Native.Contracts.DashboardBootstrap.Workspace.get -> Zeroshot.Native.Contracts.DashboardWorkspace!
 Zeroshot.Native.Contracts.DashboardBootstrap.Workspace.init -> void
 Zeroshot.Native.Contracts.DashboardContract
-Zeroshot.Native.Contracts.DashboardContract.DashboardContract() -> void
 Zeroshot.Native.Contracts.DashboardContract.DashboardContract(Zeroshot.Native.Contracts.DashboardContract! original) -> void
 Zeroshot.Native.Contracts.DashboardDataAction
-Zeroshot.Native.Contracts.DashboardDataAction.DashboardDataAction() -> void
 Zeroshot.Native.Contracts.DashboardDataAction.DashboardDataAction(Zeroshot.Native.Contracts.DashboardDataAction! original) -> void
 Zeroshot.Native.Contracts.DashboardDataDraft
 Zeroshot.Native.Contracts.DashboardDataDraft.DashboardDataDraft() -> void
@@ -2704,7 +2720,6 @@ Zeroshot.Native.Contracts.DashboardDataRequest.Graph.init -> void
 Zeroshot.Native.Contracts.DashboardDataRequest.Runtime.get -> System.Text.Json.JsonElement
 Zeroshot.Native.Contracts.DashboardDataRequest.Runtime.init -> void
 Zeroshot.Native.Contracts.DashboardDataSource
-Zeroshot.Native.Contracts.DashboardDataSource.DashboardDataSource() -> void
 Zeroshot.Native.Contracts.DashboardDataSource.DashboardDataSource(Zeroshot.Native.Contracts.DashboardDataSource! original) -> void
 Zeroshot.Native.Contracts.DashboardDataSource.Path.get -> System.Collections.Immutable.ImmutableArray<Zeroshot.Native.Contracts.FieldName!>
 Zeroshot.Native.Contracts.DashboardDataSource.Path.init -> void
@@ -2768,7 +2783,6 @@ Zeroshot.Native.Contracts.DashboardValidation.Equals(Zeroshot.Native.Contracts.D
 Zeroshot.Native.Contracts.DashboardValidation.Valid.get -> bool
 Zeroshot.Native.Contracts.DashboardValidation.Valid.init -> void
 Zeroshot.Native.Contracts.DashboardWorker
-Zeroshot.Native.Contracts.DashboardWorker.DashboardWorker() -> void
 Zeroshot.Native.Contracts.DashboardWorker.DashboardWorker(Zeroshot.Native.Contracts.DashboardWorker! original) -> void
 Zeroshot.Native.Contracts.DashboardWorker.Id.get -> string!
 Zeroshot.Native.Contracts.DashboardWorker.Id.init -> void
@@ -2787,7 +2801,6 @@ Zeroshot.Native.Contracts.DashboardWorkspaceKind
 Zeroshot.Native.Contracts.DashboardWorkspaceKind.Local = 0 -> Zeroshot.Native.Contracts.DashboardWorkspaceKind
 Zeroshot.Native.Contracts.DashboardWorkspaceKind.Target = 1 -> Zeroshot.Native.Contracts.DashboardWorkspaceKind
 Zeroshot.Native.Contracts.DataSelector
-Zeroshot.Native.Contracts.DataSelector.DataSelector() -> void
 Zeroshot.Native.Contracts.DataSelector.DataSelector(Zeroshot.Native.Contracts.DataSelector! original) -> void
 Zeroshot.Native.Contracts.DeleteParams
 Zeroshot.Native.Contracts.DeleteParams.DeleteParams() -> void
@@ -2834,14 +2847,12 @@ Zeroshot.Native.Contracts.DeviceTokenError.AuthorizationPending = 0 -> Zeroshot.
 Zeroshot.Native.Contracts.DeviceTokenError.ExpiredToken = 3 -> Zeroshot.Native.Contracts.DeviceTokenError
 Zeroshot.Native.Contracts.DeviceTokenError.SlowDown = 1 -> Zeroshot.Native.Contracts.DeviceTokenError
 Zeroshot.Native.Contracts.DiagnosticPathSegment
-Zeroshot.Native.Contracts.DiagnosticPathSegment.DiagnosticPathSegment() -> void
 Zeroshot.Native.Contracts.DiagnosticPathSegment.DiagnosticPathSegment(Zeroshot.Native.Contracts.DiagnosticPathSegment! original) -> void
 Zeroshot.Native.Contracts.DiagnosticSeverity
 Zeroshot.Native.Contracts.DiagnosticSeverity.Error = 0 -> Zeroshot.Native.Contracts.DiagnosticSeverity
 Zeroshot.Native.Contracts.DiagnosticSeverity.Info = 2 -> Zeroshot.Native.Contracts.DiagnosticSeverity
 Zeroshot.Native.Contracts.DiagnosticSeverity.Warning = 1 -> Zeroshot.Native.Contracts.DiagnosticSeverity
 Zeroshot.Native.Contracts.DiscoveryContract
-Zeroshot.Native.Contracts.DiscoveryContract.DiscoveryContract() -> void
 Zeroshot.Native.Contracts.DiscoveryContract.DiscoveryContract(Zeroshot.Native.Contracts.DiscoveryContract! original) -> void
 Zeroshot.Native.Contracts.DispatchState
 Zeroshot.Native.Contracts.DispatchState.Active = 0 -> Zeroshot.Native.Contracts.DispatchState
@@ -2875,7 +2886,6 @@ Zeroshot.Native.Contracts.DurableExecution.Occurrence.init -> void
 Zeroshot.Native.Contracts.DurableExecution.State.get -> Zeroshot.Native.Contracts.DurableExecutionState!
 Zeroshot.Native.Contracts.DurableExecution.State.init -> void
 Zeroshot.Native.Contracts.DurableExecutionState
-Zeroshot.Native.Contracts.DurableExecutionState.DurableExecutionState() -> void
 Zeroshot.Native.Contracts.DurableExecutionState.DurableExecutionState(Zeroshot.Native.Contracts.DurableExecutionState! original) -> void
 Zeroshot.Native.Contracts.EnumLabel
 Zeroshot.Native.Contracts.EnumLabel.EnumLabel(string! value) -> void
@@ -3082,7 +3092,6 @@ Zeroshot.Native.Contracts.GraphIdentity
 Zeroshot.Native.Contracts.GraphIdentity.Equals(Zeroshot.Native.Contracts.GraphIdentity? other) -> bool
 Zeroshot.Native.Contracts.GraphIdentity.GraphIdentity(string! value) -> void
 Zeroshot.Native.Contracts.GraphNode
-Zeroshot.Native.Contracts.GraphNode.GraphNode() -> void
 Zeroshot.Native.Contracts.GraphNode.GraphNode(Zeroshot.Native.Contracts.GraphNode! original) -> void
 Zeroshot.Native.Contracts.GraphProfile
 Zeroshot.Native.Contracts.GraphProfile.Full = 0 -> Zeroshot.Native.Contracts.GraphProfile
@@ -3099,13 +3108,10 @@ Zeroshot.Native.Contracts.GraphSpec.Profile.init -> void
 Zeroshot.Native.Contracts.GraphSpec.Root.get -> Zeroshot.Native.Contracts.GraphNode!
 Zeroshot.Native.Contracts.GraphSpec.Root.init -> void
 Zeroshot.Native.Contracts.Guard
-Zeroshot.Native.Contracts.Guard.Guard() -> void
 Zeroshot.Native.Contracts.Guard.Guard(Zeroshot.Native.Contracts.Guard! original) -> void
 Zeroshot.Native.Contracts.HistoryContract
-Zeroshot.Native.Contracts.HistoryContract.HistoryContract() -> void
 Zeroshot.Native.Contracts.HistoryContract.HistoryContract(Zeroshot.Native.Contracts.HistoryContract! original) -> void
 Zeroshot.Native.Contracts.HistoryEvent
-Zeroshot.Native.Contracts.HistoryEvent.HistoryEvent() -> void
 Zeroshot.Native.Contracts.HistoryEvent.HistoryEvent(Zeroshot.Native.Contracts.HistoryEvent! original) -> void
 Zeroshot.Native.Contracts.HistoryEventRecord
 Zeroshot.Native.Contracts.HistoryEventRecord.Cursor.get -> Zeroshot.Native.Contracts.Cursor!
@@ -3180,7 +3186,6 @@ Zeroshot.Native.Contracts.HostedRunListResult.HostedRunListResult() -> void
 Zeroshot.Native.Contracts.HostedRunListResult.Runs.get -> System.Collections.Immutable.ImmutableArray<Zeroshot.Native.Contracts.HostedRunStatusResult!>
 Zeroshot.Native.Contracts.HostedRunListResult.Runs.init -> void
 Zeroshot.Native.Contracts.HostedRunStatus
-Zeroshot.Native.Contracts.HostedRunStatus.HostedRunStatus() -> void
 Zeroshot.Native.Contracts.HostedRunStatus.HostedRunStatus(Zeroshot.Native.Contracts.HostedRunStatus! original) -> void
 Zeroshot.Native.Contracts.HostedRunStatusResult
 Zeroshot.Native.Contracts.HostedRunStatusResult.AtCursor.get -> Zeroshot.Native.Contracts.Cursor!
@@ -3261,7 +3266,6 @@ Zeroshot.Native.Contracts.ItemSelector.ItemSelector() -> void
 Zeroshot.Native.Contracts.ItemSelector.Path.get -> System.Collections.Immutable.ImmutableArray<string!>
 Zeroshot.Native.Contracts.ItemSelector.Path.init -> void
 Zeroshot.Native.Contracts.Join
-Zeroshot.Native.Contracts.Join.Join() -> void
 Zeroshot.Native.Contracts.Join.Join(Zeroshot.Native.Contracts.Join! original) -> void
 Zeroshot.Native.Contracts.JsonRpcError
 Zeroshot.Native.Contracts.JsonRpcError.Code.get -> long
@@ -3472,7 +3476,6 @@ Zeroshot.Native.Contracts.ModelId
 Zeroshot.Native.Contracts.ModelId.Equals(Zeroshot.Native.Contracts.ModelId? other) -> bool
 Zeroshot.Native.Contracts.ModelId.ModelId(string! value) -> void
 Zeroshot.Native.Contracts.NativeContract
-Zeroshot.Native.Contracts.NativeContract.NativeContract() -> void
 Zeroshot.Native.Contracts.NativeContract.NativeContract(Zeroshot.Native.Contracts.NativeContract! original) -> void
 Zeroshot.Native.Contracts.NativeString
 Zeroshot.Native.Contracts.NativeString.NativeString(Zeroshot.Native.Contracts.NativeString! original) -> void
@@ -3542,7 +3545,6 @@ Zeroshot.Native.Contracts.NodeOutputSource.Node.get -> Zeroshot.Native.Contracts
 Zeroshot.Native.Contracts.NodeOutputSource.Node.init -> void
 Zeroshot.Native.Contracts.NodeOutputSource.NodeOutputSource() -> void
 Zeroshot.Native.Contracts.NodeRuntimeBinding
-Zeroshot.Native.Contracts.NodeRuntimeBinding.NodeRuntimeBinding() -> void
 Zeroshot.Native.Contracts.NodeRuntimeBinding.NodeRuntimeBinding(Zeroshot.Native.Contracts.NodeRuntimeBinding! original) -> void
 Zeroshot.Native.Contracts.NodeStartedHistoryEvent
 Zeroshot.Native.Contracts.NodeStartedHistoryEvent.Attempt.get -> Zeroshot.Native.Contracts.PositiveInteger
@@ -3633,7 +3635,6 @@ Zeroshot.Native.Contracts.ParNode.PromotedStatePaths.init -> void
 Zeroshot.Native.Contracts.ParNode.State.get -> Zeroshot.Native.Contracts.PayloadType!
 Zeroshot.Native.Contracts.ParNode.State.init -> void
 Zeroshot.Native.Contracts.PayloadType
-Zeroshot.Native.Contracts.PayloadType.PayloadType() -> void
 Zeroshot.Native.Contracts.PayloadType.PayloadType(Zeroshot.Native.Contracts.PayloadType! original) -> void
 Zeroshot.Native.Contracts.Phase
 Zeroshot.Native.Contracts.Phase.Admitting = 1 -> Zeroshot.Native.Contracts.Phase
@@ -3987,7 +3988,6 @@ Zeroshot.Native.Contracts.RunHistorySummary.Terminal.init -> void
 Zeroshot.Native.Contracts.RunHistorySummary.Title.get -> Zeroshot.Native.Contracts.RunTitle!
 Zeroshot.Native.Contracts.RunHistorySummary.Title.init -> void
 Zeroshot.Native.Contracts.RunHistoryTerminalSynopsis
-Zeroshot.Native.Contracts.RunHistoryTerminalSynopsis.RunHistoryTerminalSynopsis() -> void
 Zeroshot.Native.Contracts.RunHistoryTerminalSynopsis.RunHistoryTerminalSynopsis(Zeroshot.Native.Contracts.RunHistoryTerminalSynopsis! original) -> void
 Zeroshot.Native.Contracts.RunId
 Zeroshot.Native.Contracts.RunId.Equals(Zeroshot.Native.Contracts.RunId? other) -> bool
@@ -4170,7 +4170,6 @@ Zeroshot.Native.Contracts.RunProfileSummary.RunProfileSummary() -> void
 Zeroshot.Native.Contracts.RunProfileSummary.Scope.get -> Zeroshot.Native.Contracts.RunProfileScope
 Zeroshot.Native.Contracts.RunProfileSummary.Scope.init -> void
 Zeroshot.Native.Contracts.RunResumeFrom
-Zeroshot.Native.Contracts.RunResumeFrom.RunResumeFrom() -> void
 Zeroshot.Native.Contracts.RunResumeFrom.RunResumeFrom(Zeroshot.Native.Contracts.RunResumeFrom! original) -> void
 Zeroshot.Native.Contracts.RunResumeResult
 Zeroshot.Native.Contracts.RunResumeResult.Equals(Zeroshot.Native.Contracts.RunResumeResult? other) -> bool
@@ -4187,7 +4186,6 @@ Zeroshot.Native.Contracts.RunStartedHistoryEvent
 Zeroshot.Native.Contracts.RunStartedHistoryEvent.Equals(Zeroshot.Native.Contracts.RunStartedHistoryEvent? other) -> bool
 Zeroshot.Native.Contracts.RunStartedHistoryEvent.RunStartedHistoryEvent() -> void
 Zeroshot.Native.Contracts.RunStatus
-Zeroshot.Native.Contracts.RunStatus.RunStatus() -> void
 Zeroshot.Native.Contracts.RunStatus.RunStatus(Zeroshot.Native.Contracts.RunStatus! original) -> void
 Zeroshot.Native.Contracts.RunStatusParams
 Zeroshot.Native.Contracts.RunStatusParams.Equals(Zeroshot.Native.Contracts.RunStatusParams? other) -> bool
@@ -4259,7 +4257,6 @@ Zeroshot.Native.Contracts.RuntimeFailure.Reason.get -> string!
 Zeroshot.Native.Contracts.RuntimeFailure.Reason.init -> void
 Zeroshot.Native.Contracts.RuntimeFailure.RuntimeFailure() -> void
 Zeroshot.Native.Contracts.RuntimePlan
-Zeroshot.Native.Contracts.RuntimePlan.RuntimePlan() -> void
 Zeroshot.Native.Contracts.RuntimePlan.RuntimePlan(Zeroshot.Native.Contracts.RuntimePlan! original) -> void
 Zeroshot.Native.Contracts.RunTitle
 Zeroshot.Native.Contracts.RunTitle.Equals(Zeroshot.Native.Contracts.RunTitle? other) -> bool
@@ -4604,7 +4601,6 @@ Zeroshot.Native.Contracts.TargetHostedWorkspaceRecoveryRoutes.Resume.get -> stri
 Zeroshot.Native.Contracts.TargetHostedWorkspaceRecoveryRoutes.Resume.init -> void
 Zeroshot.Native.Contracts.TargetHostedWorkspaceRecoveryRoutes.TargetHostedWorkspaceRecoveryRoutes() -> void
 Zeroshot.Native.Contracts.TargetHttpContract
-Zeroshot.Native.Contracts.TargetHttpContract.TargetHttpContract() -> void
 Zeroshot.Native.Contracts.TargetHttpContract.TargetHttpContract(Zeroshot.Native.Contracts.TargetHttpContract! original) -> void
 Zeroshot.Native.Contracts.TargetHttpProblem
 Zeroshot.Native.Contracts.TargetHttpProblem.Code.get -> string!
@@ -4790,10 +4786,8 @@ Zeroshot.Native.Contracts.TerminalHistoryEvent.Result.get -> Zeroshot.Native.Con
 Zeroshot.Native.Contracts.TerminalHistoryEvent.Result.init -> void
 Zeroshot.Native.Contracts.TerminalHistoryEvent.TerminalHistoryEvent() -> void
 Zeroshot.Native.Contracts.TerminalResult
-Zeroshot.Native.Contracts.TerminalResult.TerminalResult() -> void
 Zeroshot.Native.Contracts.TerminalResult.TerminalResult(Zeroshot.Native.Contracts.TerminalResult! original) -> void
 Zeroshot.Native.Contracts.TerminationWitness
-Zeroshot.Native.Contracts.TerminationWitness.TerminationWitness() -> void
 Zeroshot.Native.Contracts.TerminationWitness.TerminationWitness(Zeroshot.Native.Contracts.TerminationWitness! original) -> void
 Zeroshot.Native.Contracts.TokenCount
 Zeroshot.Native.Contracts.TokenCount.Equals(Zeroshot.Native.Contracts.TokenCount other) -> bool
@@ -4932,7 +4926,6 @@ Zeroshot.Native.Contracts.VoidedExecutionState.Reason.get -> Zeroshot.Native.Con
 Zeroshot.Native.Contracts.VoidedExecutionState.Reason.init -> void
 Zeroshot.Native.Contracts.VoidedExecutionState.VoidedExecutionState() -> void
 Zeroshot.Native.Contracts.WatchEvent
-Zeroshot.Native.Contracts.WatchEvent.WatchEvent() -> void
 Zeroshot.Native.Contracts.WatchEvent.WatchEvent(Zeroshot.Native.Contracts.WatchEvent! original) -> void
 Zeroshot.Native.Contracts.WatchParams
 Zeroshot.Native.Contracts.WatchParams.Equals(Zeroshot.Native.Contracts.WatchParams? other) -> bool
@@ -4990,7 +4983,6 @@ Zeroshot.Native.Contracts.WorkerFailureReason.InteractiveInputRequired = 2 -> Ze
 Zeroshot.Native.Contracts.WorkerFailureReason.MalformedResult = 4 -> Zeroshot.Native.Contracts.WorkerFailureReason
 Zeroshot.Native.Contracts.WorkerFailureReason.PolicyDenied = 1 -> Zeroshot.Native.Contracts.WorkerFailureReason
 Zeroshot.Native.Contracts.WorkerOutcome
-Zeroshot.Native.Contracts.WorkerOutcome.WorkerOutcome() -> void
 Zeroshot.Native.Contracts.WorkerOutcome.WorkerOutcome(Zeroshot.Native.Contracts.WorkerOutcome! original) -> void
 Zeroshot.Native.Contracts.WorkerProtocolBinding
 Zeroshot.Native.Contracts.WorkerProtocolBinding.Equals(Zeroshot.Native.Contracts.WorkerProtocolBinding? other) -> bool
@@ -5046,7 +5038,6 @@ Zeroshot.Native.DashboardRedirect
 Zeroshot.Native.DashboardRedirect.Location.get -> string!
 Zeroshot.Native.DashboardRedirect.StatusCode.get -> System.Net.HttpStatusCode
 Zeroshot.Native.DashboardRunEvent
-Zeroshot.Native.DashboardRunEvent.DashboardRunEvent() -> void
 Zeroshot.Native.DashboardRunEvent.DashboardRunEvent(Zeroshot.Native.DashboardRunEvent! original) -> void
 Zeroshot.Native.DashboardRunEvents
 Zeroshot.Native.DashboardRunEvents.Completion.get -> System.Threading.Tasks.Task<Zeroshot.Native.NativeSubscriptionCompletion!>!
@@ -5148,15 +5139,11 @@ Zeroshot.Native.NativeHostedRunsClient.StatusAsync(Zeroshot.Native.Contracts.Tar
 Zeroshot.Native.NativeHostedRunsClient.WatchAsync(Zeroshot.Native.Contracts.TargetDiscoveryDocument! discovery, Zeroshot.Native.Contracts.RunWatchParams! parameters, Zeroshot.Native.TargetControlCredentials! credentials, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Zeroshot.Native.HostedRunStream<Zeroshot.Native.Contracts.HostedRunWatchEventNotification!>!>!
 Zeroshot.Native.NativeHttpException
 Zeroshot.Native.NativeHttpException.CorrelationId.get -> System.Guid
-Zeroshot.Native.NativeHttpException.DeviceTokenError.get -> Zeroshot.Native.Contracts.DeviceTokenError?
 Zeroshot.Native.NativeHttpException.ExportRawDiagnostic() -> byte[]?
-Zeroshot.Native.NativeHttpException.HistoryProblem.get -> Zeroshot.Native.Contracts.RunHistoryProblemCode?
 Zeroshot.Native.NativeHttpException.Kind.get -> Zeroshot.Native.NativeHttpFailureKind
 Zeroshot.Native.NativeHttpException.Operation.get -> string!
-Zeroshot.Native.NativeHttpException.Problem.get -> Zeroshot.Native.Contracts.TargetHttpProblem?
 Zeroshot.Native.NativeHttpException.Stage.get -> string!
 Zeroshot.Native.NativeHttpException.StatusCode.get -> System.Net.HttpStatusCode?
-Zeroshot.Native.NativeHttpException.UiProblem.get -> Zeroshot.Native.Contracts.UiProblem?
 Zeroshot.Native.NativeHttpFailureKind
 Zeroshot.Native.NativeHttpFailureKind.Capacity = 0 -> Zeroshot.Native.NativeHttpFailureKind
 Zeroshot.Native.NativeHttpFailureKind.Deadline = 1 -> Zeroshot.Native.NativeHttpFailureKind
