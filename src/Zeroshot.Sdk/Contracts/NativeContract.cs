@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
@@ -12,13 +11,10 @@ public abstract record NativeContract
     public sealed override string ToString() => GetType().Name;
 
     /// <summary>
-    /// The contract's own rules beyond strict typed decoding and nested pinned schemas. The serializer runs
+    /// The contract's own rules beyond strict typed decoding and member rules. The serializer runs
     /// them on every decoded record, at any depth.
     /// </summary>
     internal virtual void Validate() { }
-
-    /// <summary>Rules that need the received JSON itself. WireValidation runs them on a decoded root.</summary>
-    internal virtual void CheckWire(JsonElement json) { }
 }
 
 internal static class ContractRules

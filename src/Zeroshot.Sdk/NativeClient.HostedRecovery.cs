@@ -27,6 +27,12 @@ public sealed class NativeHostedRecoveryClient
     private static readonly HttpBinding<RunDiscardWorkspaceResult> DiscardWorkspace = new(
         new("hosted_workspace_recovery.discard_workspace", OperationTransport.Http, responseBytes: MaxBytes), RequestHeaders.NoStore,
         NativeClient.IsHostedRefusal, (result, runId) => result.Require(runId));
+    // Native compiles the recovery routes within build_hosted_runs_descriptor (contract/hosted_runs.rs): they append to its
+    // base_url, and each has one whole {run_id} segment and no query.
+    private static readonly HttpCapability<TargetHostedWorkspaceRecoveryDiscovery, TargetHostedWorkspaceRecoveryRoutes> Capability = new(
+        HttpCapability.Hosted, e => e.HostedWorkspaceRecovery, w => w.Kind == Kind, baseUrl: null, w => w.RouteTemplates, Routes.All,
+        missing: "The target does not advertise hosted workspace recovery.", incompatible: "Hosted workspace recovery discovery is incompatible.",
+        within: NativeHostedRunsClient.Capability.Base);
     private readonly NativeClient client;
     internal NativeHostedRecoveryClient(NativeClient client) => this.client = client;
 
@@ -36,7 +42,7 @@ public sealed class NativeHostedRecoveryClient
         => client.ReadAsync(Checkpoints, () =>
         {
             ArgumentNullException.ThrowIfNull(parameters);
-            return new HttpCall(Route(discovery, credentials, r => r.Checkpoints, parameters.RunId), NativeJson.SerializeUtf8(parameters));
+            return new HttpCall(Route(discovery, credentials, Routes.Checkpoints, parameters.RunId), NativeJson.SerializeUtf8(parameters));
         }, credentials, cancellationToken, validate: result => parameters.RequirePage(result));
 
     /// <summary>
@@ -50,28 +56,27 @@ public sealed class NativeHostedRecoveryClient
         => client.MutateAsync(Resume, () =>
         {
             ArgumentNullException.ThrowIfNull(successorRunId);
-            return new HttpCall(Route(discovery, credentials, r => r.Resume, runId),
+            return new HttpCall(Route(discovery, credentials, Routes.Resume, runId),
                 RunResumeParams.SerializeUtf8(runId, successorRunId, from, runCredentials));
         }, credentials, cancellationToken, validate: result => result.Require(runId, successorRunId));
 
     /// <summary>Sends one request to destroy the retained recovery workspace. The run and its history remain.</summary>
     public Task<NativeAttempt<RunDiscardWorkspaceResult>> DiscardWorkspaceAsync(TargetDiscoveryDocument discovery, RunId runId,
         TargetControlCredentials credentials, CancellationToken cancellationToken = default)
-        => client.MutateAsync(DiscardWorkspace, () => new HttpCall(Route(discovery, credentials, r => r.DiscardWorkspace, runId),
+        => client.MutateAsync(DiscardWorkspace, () => new HttpCall(Route(discovery, credentials, Routes.DiscardWorkspace, runId),
             NativeJson.SerializeUtf8(new RunDiscardWorkspaceParams { RunId = runId })), credentials, cancellationToken, runId);
 
-    // Native compiles the recovery routes within the hosted-runs descriptor (contract/hosted_runs.rs): they append
-    // to its base_url, and each has one whole {run_id} segment and no query.
     private Uri Route(TargetDiscoveryDocument discovery, TargetControlCredentials credentials,
-        Func<TargetHostedWorkspaceRecoveryRoutes, string> select, RunId runId)
+        CapabilityRoute<TargetHostedWorkspaceRecoveryRoutes> route, RunId runId)
     {
         ArgumentNullException.ThrowIfNull(runId);
-        var baseUrl = NativeHostedRunsClient.Base(client.Origin, discovery, credentials, runId);
-        var routes = NativeClient.Advertised(discovery.Extensions.HostedWorkspaceRecovery, w => w.Kind, Kind,
-            "The target does not advertise hosted workspace recovery.", "Hosted workspace recovery discovery is incompatible.").RouteTemplates;
-        _ = NativeRoutes.RunIdPath(routes.Resume, requiresRunId: true, query: null);
-        _ = NativeRoutes.RunIdPath(routes.Checkpoints, requiresRunId: true, query: null);
-        _ = NativeRoutes.RunIdPath(routes.DiscardWorkspace, requiresRunId: true, query: null);
-        return NativeRoutes.RunIdRoute(baseUrl, select(routes), runId.Value, query: null);
+        return Capability.Compile(client.Origin, discovery, credentials).Url(route, runId);
+    }
+
+    private static class Routes
+    {
+        internal static readonly CapabilityRoute<TargetHostedWorkspaceRecoveryRoutes> Resume = new(r => r.Resume, true),
+            Checkpoints = new(r => r.Checkpoints, true), DiscardWorkspace = new(r => r.DiscardWorkspace, true);
+        internal static readonly CapabilityRoute<TargetHostedWorkspaceRecoveryRoutes>[] All = [Resume, Checkpoints, DiscardWorkspace];
     }
 }

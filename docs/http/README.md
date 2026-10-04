@@ -819,7 +819,9 @@ status-only evidence, distinct from a retained `terminal` event. The binding ass
 no retention period, and native advertises no history SSE route.
 
 `HistoryTests.cs` covers the golden records, wire-shape and contract tables, routes,
-authority, problem categories and bounds. The [native witness](../../tools/native-witness/README.md)
+authority and problem categories. `RunHistoryReadTests.cs` holds every history surface
+(this capability, the dashboard and the private exports) to one table: list position,
+definition identity, page continuity, response and problem bounds, and argument refusals. The [native witness](../../tools/native-witness/README.md)
 reads real retained runs through the direct UI mount.
 
 ## Private target bootstrap
@@ -917,7 +919,8 @@ Refusals keep their status and `TargetHttpProblem`:
   as 404 `run_not_found` and 400 `invalid_cursor`.
 
 `PrivateExportsTests.cs` covers the exact requests, authority and argument
-refusals, the refusal categories, and malformed or oversized responses. The
+refusals, the refusal categories, and malformed or oversized diagnostics;
+`RunHistoryReadTests.cs` covers the history exports' bounds and continuity. The
 [native witness](../../tools/native-witness/README.md) reads a real admitted run
 through a stock private-mode target and checks the refusals of a direct target.
 Non-empty and truncated diagnostics are fixture-only: stock native records

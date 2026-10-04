@@ -544,6 +544,98 @@ public sealed class CapabilityConformanceTests
     public static IEnumerable<Func<Op>> RefusingOperations() => Operations().Where(op => op.Refuses).Select(op => (Func<Op>)(() => op));
     public static IEnumerable<Func<Op>> AllOperations() => Operations().Select(op => (Func<Op>)(() => op));
 
+    // ---- descriptor compilation order ----
+    private const string HostedGate = "Hosted operations require hosted OAuth discovery and matching credentials.";
+    private const string InvalidRoute = "Invalid native route or endpoint.";
+    private const string Unaddressable = "Native cannot address this ID as one route segment.";
+
+    // Native compiles a descriptor in one order: the discovery gate, the advertised kind with the capability's own wire rules,
+    // the base URL and every route, and only then fills the selected route with the caller's ID. Each case also breaks every
+    // later stage, so the earliest broken stage must answer.
+    public static IEnumerable<(string Case, Func<NativeClient, Task> Call, string Message)> DescriptorStages()
+    {
+        const string Attacker = "https://attacker.example/api/";
+        const TargetAuthentication Direct = TargetAuthentication.None;
+        static RunId Id(string value) => new(value);
+        var runRoutes = RunsWire with { RouteTemplates = RunRoutes with { List = "/native-v2/runs/{run_id}" } };
+        var runsBroken = runRoutes with { Kind = "zeroshot.hosted-runs/v2", BaseUrl = Attacker };
+        yield return ("hosted runs: gate", c => c.HostedRuns.StatusAsync(HostedRuns(runsBroken, Direct), Id(".."), Hosted), HostedGate);
+        yield return ("hosted runs: kind", c => c.HostedRuns.StatusAsync(HostedRuns(runsBroken), Id(".."), Hosted), "Hosted run discovery is incompatible.");
+        yield return ("hosted runs: sibling route", c => c.HostedRuns.StatusAsync(HostedRuns(runRoutes), Id(".."), Hosted), InvalidRoute);
+
+        // Recovery compiles within the whole hosted-runs descriptor.
+        var recoveryRoutes = RecoveryWire with { RouteTemplates = RecoveryWire.RouteTemplates with { Resume = "/runs/resume" } };
+        var recoveryBroken = recoveryRoutes with { Kind = "openengine.hosted-workspace-recovery/v2" };
+        var recoveryRuns = RecoveryRuns with { RouteTemplates = RecoveryRuns.RouteTemplates with { List = "/runs/{run_id}" } };
+        yield return ("recovery: gate", c => c.HostedRecovery.DiscardWorkspaceAsync(Recovery(recoveryBroken, Direct, runsBroken), Id(".."), Hosted), HostedGate);
+        yield return ("recovery: hosted-runs kind", c => c.HostedRecovery.DiscardWorkspaceAsync(Recovery(recoveryBroken, runs: runsBroken), Id(".."), Hosted),
+            "Hosted run discovery is incompatible.");
+        yield return ("recovery: hosted-runs route", c => c.HostedRecovery.DiscardWorkspaceAsync(Recovery(recoveryBroken, runs: recoveryRuns), Id(".."), Hosted), InvalidRoute);
+        yield return ("recovery: kind", c => c.HostedRecovery.DiscardWorkspaceAsync(Recovery(recoveryBroken), Id(".."), Hosted),
+            "Hosted workspace recovery discovery is incompatible.");
+        yield return ("recovery: sibling route", c => c.HostedRecovery.DiscardWorkspaceAsync(Recovery(recoveryRoutes), Id(".."), Hosted), InvalidRoute);
+
+        var planRoutes = PlansWire with { RouteTemplates = PlansWire.RouteTemplates with { Create = "/plans/{plan_id}" } };
+        var plansBroken = planRoutes with { Kind = "zeroshot.merge-plans/v2", BaseUrl = Attacker };
+        yield return ("merge plans: gate", c => c.MergePlans.StatusAsync(Plans(plansBroken, Direct), Id(".."), Hosted), HostedGate);
+        yield return ("merge plans: kind", c => c.MergePlans.StatusAsync(Plans(plansBroken), Id(".."), Hosted), "Merge-plan discovery is incompatible.");
+        yield return ("merge plans: sibling route", c => c.MergePlans.StatusAsync(Plans(planRoutes), Id(".."), Hosted), InvalidRoute);
+
+        var profilesBroken = ProfilesWire with
+        {
+            Kind = "zeroshot.run-profiles/v2", BaseUrl = Attacker, RouteTemplates = ProfilesWire.RouteTemplates with { Run = "/profiles/{run_id}" }
+        };
+        yield return ("profiles: gate", c => c.Profiles.ListAsync(Profiles(profilesBroken, Direct), new() { Scope = RunProfileScope.User }, Hosted), HostedGate);
+        yield return ("profiles: kind", c => c.Profiles.ListAsync(Profiles(profilesBroken), new() { Scope = RunProfileScope.User }, Hosted),
+            "Run-profile discovery is incompatible.");
+
+        var connectionsBroken = ConnectionsWire with
+        {
+            DynamicKinds = ["static", "static"], BaseUrl = Attacker, RouteTemplates = ConnectionsWire.RouteTemplates with { Resolve = "/c/{run_id}" }
+        };
+        yield return ("connections: gate", c => c.Connections.ListAsync(Connections(connectionsBroken, Direct), new() { Scope = ConnectionScope.User }, Hosted), HostedGate);
+        yield return ("connections: dynamic kinds", c => c.Connections.ListAsync(Connections(connectionsBroken), new() { Scope = ConnectionScope.User }, Hosted),
+            "Connection discovery is incompatible.");
+
+        var history = Controller(Direct) with
+        {
+            Extensions = new()
+            {
+                RunHistory = new()
+                {
+                    Kind = "zeroshot.run-history/v2", BaseUrl = Attacker,
+                    RouteTemplates = new() { List = "/runs", Detail = "/runs/{run_id}", Page = "/runs/{run_id}/page{?after}" }
+                }
+            }
+        };
+        yield return ("history: gate", c => c.History.ListAsync(history, credentials: Hosted), "Discovery and supplied history authority are incompatible.");
+        yield return ("history: kind", c => c.History.ListAsync(history), "Discovery does not advertise compatible run history.");
+
+        // Only a compiled descriptor fills an ID, which native's segment setter must send unchanged.
+        yield return ("hosted runs status ID", c => c.HostedRuns.StatusAsync(HostedRuns(RunsWire), Id("."), Hosted), Unaddressable);
+        yield return ("hosted runs watch ID", c => c.HostedRuns.WatchAsync(HostedRuns(RunsWire), new() { RunId = Id("a\tb") }, Hosted), Unaddressable);
+        yield return ("hosted runs logs ID", c => c.HostedRuns.LogsAsync(HostedRuns(RunsWire), new() { RunId = Id("a\rb") }, Hosted), Unaddressable);
+        yield return ("hosted runs force ID", c => c.HostedRuns.ForceAsync(HostedRuns(RunsWire), Id(".."), Hosted), Unaddressable);
+        yield return ("recovery checkpoints ID", c => c.HostedRecovery.CheckpointsAsync(Recovery(RecoveryWire), new() { RunId = Id(".") }, Hosted), Unaddressable);
+        yield return ("recovery resume ID", c => c.HostedRecovery.ResumeAsync(Recovery(RecoveryWire), Id("a\nb"), Id("run-2"), Hosted), Unaddressable);
+        yield return ("recovery discard ID", c => c.HostedRecovery.DiscardWorkspaceAsync(Recovery(RecoveryWire), Id(".."), Hosted), Unaddressable);
+        yield return ("merge plans status ID", c => c.MergePlans.StatusAsync(Plans(PlansWire), Id("plan\t1"), Hosted), Unaddressable);
+        yield return ("merge plans force ID", c => c.MergePlans.ForceAsync(Plans(PlansWire), Id(".."), Hosted), Unaddressable);
+    }
+
+    [Test]
+    [MethodDataSource(nameof(DescriptorStages))]
+    public async Task DescriptorsCompileInNativeOrderBeforeAnyIdFillsARoute(string name, Func<NativeClient, Task> call, string message)
+    {
+        using var handler = new Handler((_, _) => throw new InvalidOperationException("Dispatched."));
+        using var client = ClientFor(handler);
+        Exception? error = null;
+        try { await call(client); }
+        catch (Exception thrown) { error = thrown; }
+        Check(error is ArgumentException && error.Message.StartsWith(message, StringComparison.Ordinal) && handler.Calls == 0,
+            $"{name}: {error?.GetType().Name} {error?.Message}, {handler.Calls} requests");
+    }
+
     private static async Task<Request> Capture(HttpRequestMessage request, CancellationToken token)
     {
         var headers = request.Headers.Concat(request.Content?.Headers ?? Enumerable.Empty<KeyValuePair<string, IEnumerable<string>>>())

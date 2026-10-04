@@ -73,9 +73,7 @@ internal static class Candidate
 
         // The contract: package metadata and the CLI grammar read from the candidate itself. Any change must be
         // committed to tools/qualification/contract.txt, so it is reviewed rather than discovered.
-        var contract = PackageLines(client, clientSpec).Concat(PackageLines(cli, cliSpec))
-            .Concat(CliLines(Tools.Checked(Tools.DotnetHost, [command, "--help"])))
-            .Concat(OutputLines(command))
+        var contract = PackageLines(client, clientSpec).Concat(PackageLines(cli, cliSpec)).Concat(CliLines(command))
             .Distinct().Order(StringComparer.Ordinal).ToList();
         File.WriteAllLines(Path.Combine(output, "contract.txt"), contract);
         Compare("tools/qualification/contract.txt", Entries(File.ReadAllLines(ContractFile)), contract);
@@ -159,59 +157,26 @@ internal static class Candidate
     }
 
     /// <summary>
-    /// The CLI grammar from the candidate's own help: commands, their options and positional arguments (RUN also
-    /// admits the options its definition names), options every command accepts, the record schema and exit codes.
+    /// The CLI contract, read from the packed tool itself: the command grammar the parser enforces (commands, their
+    /// positional arguments and accepted options, the options every command accepts and those given alone), the declared
+    /// exit codes, the record catalog that the CLI enforces on every cli/v1 record it writes, every versioned file or
+    /// record schema the CLI and library declare, and the native binding that configurations and run files must declare.
     /// </summary>
-    internal static IEnumerable<string> CliLines(string help)
-    {
-        var lines = help.Replace("\r", "").Split('\n');
-        var usage = new List<List<string>>();
-        foreach (var line in lines.SkipWhile(line => line != "Usage:").Skip(1).TakeWhile(line => line.Trim().Length > 0))
-        {
-            var tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(token => token.Trim('[', ']', '(', ')', '|')).Where(token => token.Length > 0).ToList();
-            if (tokens[0] == "zeroshot-dotnet") usage.Add(tokens.Skip(1).ToList());
-            else usage[^1].AddRange(tokens);
-        }
-        var definitions = lines.Where(line => Regex.IsMatch(line, "^  [A-Z]+ ")).ToDictionary(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0], line => line);
-        var result = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var entry in usage)
-        {
-            if (entry[0].StartsWith("--", StringComparison.Ordinal)) { result.Add($"cli option {entry[0]}"); continue; }
-            var command = entry[0];
-            result.Add($"cli command {command}");
-            for (var i = 1; i < entry.Count; i++)
-            {
-                var token = entry[i];
-                if (token.StartsWith("--", StringComparison.Ordinal)) result.Add($"cli option {command} {token}");
-                else if (!entry[i - 1].StartsWith("--", StringComparison.Ordinal))
-                {
-                    result.Add($"cli argument {command} {token}");
-                    if (definitions.TryGetValue(token, out var definition))
-                        foreach (Match option in Regex.Matches(definition, "--[a-z-]+")) result.Add($"cli option {command} {option.Value}");
-                }
-            }
-        }
-        var text = string.Join(' ', lines);
-        var every = Regex.Match(text, @"Every command accepts ([^.]*)\.");
-        foreach (Match option in Regex.Matches(every.Groups[1].Value, "--[a-z-]+")) result.Add($"cli option * {option.Value}");
-        foreach (Match schema in Regex.Matches(text, @"zeroshot-dotnet/cli/v\d+")) result.Add($"cli schema {schema.Value}");
-        var exits = text[(text.IndexOf("Exit codes:", StringComparison.Ordinal) + "Exit codes:".Length)..];
-        foreach (var part in exits.Split(','))
-            if (Regex.Match(part, @"^\s*(\d+) ") is { Success: true } code) result.Add($"cli exit {code.Groups[1].Value}");
-        return result;
-    }
-
-    /// <summary>
-    /// The machine-readable output, read from the packed tool itself: the record catalog that the CLI enforces on every
-    /// cli/v1 record it writes, every versioned file or record schema the CLI and library declare, and the native binding
-    /// that configurations and run files must declare.
-    /// </summary>
-    private static IEnumerable<string> OutputLines(string command)
+    internal static IEnumerable<string> CliLines(string command)
     {
         var cli = Assembly.LoadFrom(command);
-        var records = (IReadOnlyDictionary<string, string[]>)cli.GetType("Zeroshot.Cli.CliContract", throwOnError: true)!
-            .GetField("Records", BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
-        foreach (var (kind, fields) in records)
+        var contract = cli.GetType("Zeroshot.Cli.CliContract", throwOnError: true)!;
+        T Catalog<T>(string name) => (T)contract.GetField(name, BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
+        foreach (var (name, arguments) in Catalog<IReadOnlyDictionary<string, string[]>>("Commands"))
+        {
+            if (name is not ("" or "*")) yield return $"cli command {name}";
+            foreach (var argument in arguments)
+                yield return argument.StartsWith("--", StringComparison.Ordinal)
+                    ? $"cli option {(name.Length == 0 ? "" : name + " ")}{argument}" : $"cli argument {name} {argument}";
+        }
+        foreach (var exit in cli.GetType("Zeroshot.Cli.ExitCodes", throwOnError: true)!.GetFields(BindingFlags.Public | BindingFlags.Static))
+            if (exit.IsLiteral) yield return $"cli exit {exit.GetRawConstantValue()}";
+        foreach (var (kind, fields) in Catalog<IReadOnlyDictionary<string, string[]>>("Records"))
         {
             if (kind != "*") yield return $"cli output {kind}";
             foreach (var field in fields) yield return $"cli output {kind} {field}";

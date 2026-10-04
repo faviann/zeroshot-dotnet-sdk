@@ -103,36 +103,35 @@ public sealed class HttpHostedRunTests
         var watch = Watch(1)[("""{"type":"event","event":""".Length)..^1];
         Check(NativeJson.DeserializeUtf8<HostedRunWatchEventNotification>(Encoding.UTF8.GetBytes(watch)).Status is QueuedHostedRunStatus);
         Expect<HostedRunWatchEventNotification>(watch[..^1] + Recovery + "}");
+    }
 
-        static void Expect<T>(string wire)
+    private sealed record Envelope : NativeContract
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("run")]
+        public required HostedRunStatusResult Run { get; init; }
+    }
+
+    // The hosted rule belongs to the record, not to a decoded root: a list entry or any other nesting keeps it.
+    [Test]
+    public void NestedHostedRecordsKeepTheHostedRule()
+    {
+        var list = NativeJson.DeserializeUtf8<HostedRunListResult>(Encoding.UTF8.GetBytes($$"""{"runs":[{{Status(Stopping)}},{{Status(Queued)}}]}"""));
+        Check(list.Runs is [{ Status: TargetHostedRunStatus { Status: StoppingRunStatus } }, { Status: QueuedHostedRunStatus }]);
+        Check(NativeJson.DeserializeUtf8<Envelope>(Encoding.UTF8.GetBytes($$"""{"run":{{Status(Queued)}}}""")).Run.Status is QueuedHostedRunStatus);
+        // Typed decoding alone accepts a null workspaceRecovery and fails a phase-less status outside JsonException.
+        foreach (var invalid in new[] { Status(Queued, extra: ""","workspaceRecovery":null"""), Status("{}"), Status("""{"activeExecutions":[]}""") })
         {
-            try { NativeJson.DeserializeUtf8<T>(Encoding.UTF8.GetBytes(wire)); }
-            catch (System.Text.Json.JsonException) { return; }
-            throw new InvalidOperationException("Accepted: " + wire);
+            Expect<HostedRunStatusResult>(invalid);
+            Expect<HostedRunListResult>($$"""{"runs":[{{Status(Queued)}},{{invalid}}]}""");
+            Expect<Envelope>($$"""{"run":{{invalid}}}""");
         }
     }
 
-    [Test]
-    public async Task UnaddressableRunIdsAreRefusedBeforeDispatch()
+    private static void Expect<T>(string wire)
     {
-        var handler = new Handler((_, _) => throw new InvalidOperationException("dispatched"));
-        using var native = ClientFor(handler);
-        // Native's path-segment setter would skip or rewrite these run IDs.
-        foreach (var id in new RunId[] { new("."), new(".."), new("a\tb") })
-        {
-            await Refused(() => native.HostedRuns.StatusAsync(Discovery(Capability), id, Hosted));
-            await Refused(() => native.HostedRuns.WatchAsync(Discovery(Capability), new() { RunId = id }, Hosted));
-            await Refused(() => native.HostedRuns.LogsAsync(Discovery(Capability), new() { RunId = id }, Hosted));
-            await Refused(() => native.HostedRuns.ForceAsync(Discovery(Capability), id, Hosted));
-        }
-        Check(handler.Calls == 0);
-
-        static async Task Refused(Func<Task> call)
-        {
-            try { await call(); }
-            catch (ArgumentException) { return; }
-            throw new InvalidOperationException("Expected refusal before dispatch.");
-        }
+        try { NativeJson.DeserializeUtf8<T>(Encoding.UTF8.GetBytes(wire)); }
+        catch (System.Text.Json.JsonException) { return; }
+        throw new InvalidOperationException("Accepted: " + wire);
     }
 
     [Test]

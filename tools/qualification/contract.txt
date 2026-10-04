@@ -1,5 +1,5 @@
-# The candidate's contract, read by the pack step from its packages, zeroshot-dotnet --help, the CLI's record
-# catalog and its library's native binding. When a change is intended, commit the contract.txt that pack writes.
+# The candidate's contract, read by the pack step from its packages, the CLI's declared command grammar and record
+# catalog, and its library's native binding. When a change is intended, commit the contract.txt that pack writes.
 # Release baselines compare the api (PublicAPI files) and cli lines.
 cli argument attach EXECUTION
 cli argument attach RUN

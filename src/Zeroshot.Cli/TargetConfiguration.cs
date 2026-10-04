@@ -53,20 +53,29 @@ internal sealed class TargetConfiguration
             try { credentials = new TargetControlCredentials(TargetAuthentication.PrivateCapability, Resolve(name)); }
             catch (ArgumentException) { throw CliFailure.Credentials($"Environment variable {name} does not hold a valid target bearer token."); }
         }
-        return CreateClient(new ZeroshotClientOptions
-        {
-            Target = Target, NativeBinding = Binding, TargetCredentials = credentials,
-            Transport = requestTimeout is { } timeout ? Transport with { RequestTimeout = timeout } : Transport,
-            Observation = recover is { } value ? Observation with { Recover = value } : Observation,
-        }, requestTimeout is null ? $"The configuration '{path}'" : $"The configuration '{path}' with --request-timeout");
+        return CreateClient(new() { Target = Target, NativeBinding = Binding, TargetCredentials = credentials, Transport = Transport, Observation = Observation },
+            $"The configuration '{path}'", requestTimeout, recover);
     }
 
-    /// <summary>Builds a client from settings that were already parsed, turning SDK value refusals into a configuration error.</summary>
-    public static ZeroshotClient CreateClient(ZeroshotClientOptions options, string source)
+    /// <summary>
+    /// Builds a client from settings that were already parsed, with the command's --request-timeout and --recovery
+    /// over them, turning SDK value refusals into a configuration error that names <paramref name="source"/>.
+    /// </summary>
+    public static ZeroshotClient CreateClient(ZeroshotClientOptions options, string source, TimeSpan? requestTimeout, bool? recover)
     {
-        try { return new ZeroshotClient(options); }
+        try
+        {
+            return new ZeroshotClient(options with
+            {
+                Transport = requestTimeout is { } timeout ? options.Transport with { RequestTimeout = timeout } : options.Transport,
+                Observation = recover is { } value ? options.Observation with { Recover = value } : options.Observation,
+            });
+        }
         catch (ArgumentException)
-        { throw CliFailure.Configuration($"{source} has an invalid target origin, timeout or limit; the SDK refused the settings."); }
+        {
+            throw CliFailure.Configuration($"{source}{(requestTimeout is null ? "" : " with --request-timeout")} has an invalid target origin, "
+                + "timeout or limit; the SDK refused the settings.");
+        }
     }
 
     /// <summary>Resolves the submission-only credentials: GitHub token, provider connections and resolver bearer.</summary>
@@ -97,17 +106,48 @@ internal sealed class TargetConfiguration
             ? target : throw Invalid("field 'target' must be an absolute URL");
         if (fields.TryGetValue("nativeBinding", out var binding)) Binding = ReadBinding(binding);
         if (fields.TryGetValue("credentials", out var credentials)) ReadCredentials(credentials);
-        if (fields.TryGetValue("transport", out var transport))
-            foreach (var (name, value) in Fields(transport, "transport.", [], TransportFields))
-                Transport = ReadTransport(Transport, name, value);
-        if (fields.TryGetValue("observation", out var observation))
-            foreach (var (name, value) in Fields(observation, "observation.", [], ["recovery", "recoveryDelay", "subscriptionOpenTimeout"]))
-                Observation = name switch
-                {
-                    "recovery" => Observation with { Recover = Recovery(Text(value, "observation.recovery")) ?? throw Invalid("field 'observation.recovery' must be 'established-interruptions' or 'none'") },
-                    "recoveryDelay" => Observation with { ReopenDelay = Duration(value, "observation.recoveryDelay") },
-                    _ => Observation with { SetupTimeout = Duration(value, "observation.subscriptionOpenTimeout") },
-                };
+        if (fields.TryGetValue("transport", out var transport)) Transport = Section(transport, "transport", Transport, TransportFields);
+        if (fields.TryGetValue("observation", out var observation)) Observation = Section(observation, "observation", Observation, ObservationFields);
+    }
+
+    /// <summary>Sets one field of a settings object from its configuration value at <paramref name="at"/>.</summary>
+    private delegate T Setter<T>(TargetConfiguration configuration, T options, JsonElement value, string at);
+
+    // Configuration keys follow the accepted CLI option names; the SDK owns each value's range rules.
+    private static readonly Dictionary<string, Setter<TransportOptions>> TransportFields = new(StringComparer.Ordinal)
+    {
+        ["connectTimeout"] = (c, options, value, at) => options with { ConnectTimeout = c.Duration(value, at) },
+        ["requestTimeout"] = (c, options, value, at) => options with { RequestTimeout = c.Duration(value, at) },
+        ["cleanupTimeout"] = (c, options, value, at) => options with { CleanupTimeout = c.Duration(value, at) },
+        ["maxResponseBytes"] = (c, options, value, at) => options with { MaxResponseBytes = c.Int32(value, at) },
+        ["maxMessageBytes"] = (c, options, value, at) => options with { MaxOecpMessageBytes = c.Int32(value, at) },
+        ["maxRequestBytes"] = (c, options, value, at) => options with { MaxRequestBytes = c.Int32(value, at) },
+        ["maxBufferedRecordsPerStream"] = (c, options, value, at) => options with { MaxQueuedObservationRecords = c.Int32(value, at) },
+        ["maxBufferedBytesPerStream"] = (c, options, value, at) => options with { MaxQueuedObservationBytes = c.Int32(value, at) },
+        ["maxBufferedBytesTotal"] = (c, options, value, at) => options with { MaxAggregateObservationBytes = c.Int64(value, at) },
+        ["maxConcurrentSubscriptions"] = (c, options, value, at) => options with { MaxConcurrentSubscriptions = c.Int32(value, at) },
+        ["maxConcurrentRequests"] = (c, options, value, at) => options with { MaxConcurrentRequests = c.Int32(value, at) },
+        ["maxOecpConnections"] = (c, options, value, at) => options with { MaxOecpConnections = c.Int32(value, at) },
+        ["maxHttpConnectionsPerOrigin"] = (c, options, value, at) => options with { MaxHttpConnectionsPerOrigin = c.Int32(value, at) },
+        ["maxErrorBodyBytes"] = (c, options, value, at) => options with { MaxErrorBodyBytes = c.Int32(value, at) },
+    };
+
+    private static readonly Dictionary<string, Setter<ObservationOptions>> ObservationFields = new(StringComparer.Ordinal)
+    {
+        ["recovery"] = (c, options, value, at) => options with
+        {
+            Recover = Recovery(c.Text(value, at)) ?? throw c.Invalid($"field '{at}' must be 'established-interruptions' or 'none'"),
+        },
+        ["recoveryDelay"] = (c, options, value, at) => options with { ReopenDelay = c.Duration(value, at) },
+        ["subscriptionOpenTimeout"] = (c, options, value, at) => options with { SetupTimeout = c.Duration(value, at) },
+    };
+
+    /// <summary>Applies a settings object's fields; the setter table's keys are the only accepted names.</summary>
+    private T Section<T>(JsonElement value, string name, T options, Dictionary<string, Setter<T>> setters)
+    {
+        foreach (var (field, element) in Fields(value, name + ".", [], [.. setters.Keys]))
+            options = setters[field](this, options, element, $"{name}.{field}");
+        return options;
     }
 
     /// <summary>Maps the CLI observation mode to the SDK recovery switch; null when unrecognized.</summary>
@@ -153,36 +193,6 @@ internal sealed class TargetConfiguration
                 settings.TryGetValue("sourceConnection", out var source) ? Key(source, at + ".sourceConnection") : null,
                 VariableName(settings["bearerEnvironment"], at + ".bearerEnvironment"));
         }
-    }
-
-    private static readonly string[] TransportFields =
-    [
-        "connectTimeout", "requestTimeout", "cleanupTimeout", "maxResponseBytes", "maxMessageBytes", "maxRequestBytes",
-        "maxBufferedRecordsPerStream", "maxBufferedBytesPerStream", "maxBufferedBytesTotal", "maxConcurrentSubscriptions",
-        "maxConcurrentRequests", "maxOecpConnections", "maxHttpConnectionsPerOrigin", "maxErrorBodyBytes",
-    ];
-
-    // Configuration keys follow the accepted CLI option names; the SDK owns each value's range rules.
-    private TransportOptions ReadTransport(TransportOptions options, string name, JsonElement value)
-    {
-        var at = "transport." + name;
-        return name switch
-        {
-            "connectTimeout" => options with { ConnectTimeout = Duration(value, at) },
-            "requestTimeout" => options with { RequestTimeout = Duration(value, at) },
-            "cleanupTimeout" => options with { CleanupTimeout = Duration(value, at) },
-            "maxResponseBytes" => options with { MaxResponseBytes = Int32(value, at) },
-            "maxMessageBytes" => options with { MaxOecpMessageBytes = Int32(value, at) },
-            "maxRequestBytes" => options with { MaxRequestBytes = Int32(value, at) },
-            "maxBufferedRecordsPerStream" => options with { MaxQueuedObservationRecords = Int32(value, at) },
-            "maxBufferedBytesPerStream" => options with { MaxQueuedObservationBytes = Int32(value, at) },
-            "maxBufferedBytesTotal" => options with { MaxAggregateObservationBytes = Int64(value, at) },
-            "maxConcurrentSubscriptions" => options with { MaxConcurrentSubscriptions = Int32(value, at) },
-            "maxConcurrentRequests" => options with { MaxConcurrentRequests = Int32(value, at) },
-            "maxOecpConnections" => options with { MaxOecpConnections = Int32(value, at) },
-            "maxHttpConnectionsPerOrigin" => options with { MaxHttpConnectionsPerOrigin = Int32(value, at) },
-            _ => options with { MaxErrorBodyBytes = Int32(value, at) },
-        };
     }
 
     private Dictionary<string, JsonElement> Fields(JsonElement value, string prefix, string[] required, string[] optional)

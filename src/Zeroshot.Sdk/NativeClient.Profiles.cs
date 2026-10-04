@@ -15,6 +15,10 @@ public sealed class NativeProfilesClient
     private static readonly HttpBinding<RunProfileDeleteResult> Delete = Mutate<RunProfileDeleteResult>("run_profiles.delete");
     private static readonly HttpBinding<RunProfileDefaultResult> Default = Mutate<RunProfileDefaultResult>("run_profiles.default");
     private static readonly HttpBinding<TargetRunReceipt> Run = Mutate<TargetRunReceipt>("run_profiles.run");
+    // Native build_profiles_descriptor compiles all six literal routes.
+    private static readonly HttpCapability<TargetRunProfilesDiscovery, TargetRunProfileRoutes> Capability = new(HttpCapability.Hosted,
+        e => e.RunProfiles, w => w.Kind == Kind, w => w.BaseUrl, w => w.RouteTemplates, Routes.All,
+        missing: "The target does not advertise profile management.", incompatible: "Run-profile discovery is incompatible.");
     private readonly NativeClient client;
     internal NativeProfilesClient(NativeClient client) => this.client = client;
 
@@ -26,44 +30,44 @@ public sealed class NativeProfilesClient
     /// <summary>Reads profile summaries for one scope. Failures throw NativeHttpException.</summary>
     public Task<RunProfileListResult> ListAsync(TargetDiscoveryDocument discovery, RunProfileListRequest request,
         TargetControlCredentials credentials, CancellationToken cancellationToken = default)
-        => client.ReadAsync(List, () => Route(discovery, request, credentials, r => r.List), credentials, cancellationToken);
+        => client.ReadAsync(List, () => Route(discovery, request, credentials, Routes.List), credentials, cancellationToken);
 
     /// <summary>Reads one complete profile. Failures throw NativeHttpException.</summary>
     public Task<RunProfile> ShowAsync(TargetDiscoveryDocument discovery, RunProfileSelector selector,
         TargetControlCredentials credentials, CancellationToken cancellationToken = default)
-        => client.ReadAsync(Show, () => Route(discovery, selector, credentials, r => r.Show), credentials, cancellationToken);
+        => client.ReadAsync(Show, () => Route(discovery, selector, credentials, Routes.Show), credentials, cancellationToken);
 
     /// <summary>Stores a profile once. Operational failures and cancellation return evidence.</summary>
     public Task<NativeAttempt<RunProfileMutationResult>> SetAsync(TargetDiscoveryDocument discovery, RunProfileSetRequest request,
         TargetControlCredentials credentials, CancellationToken cancellationToken = default)
-        => client.MutateAsync(Set, () => Route(discovery, request, credentials, r => r.Set), credentials, cancellationToken);
+        => client.MutateAsync(Set, () => Route(discovery, request, credentials, Routes.Set), credentials, cancellationToken);
 
     /// <summary>Deletes one profile once. Operational failures and cancellation return evidence.</summary>
     public Task<NativeAttempt<RunProfileDeleteResult>> DeleteAsync(TargetDiscoveryDocument discovery, RunProfileSelector selector,
         TargetControlCredentials credentials, CancellationToken cancellationToken = default)
-        => client.MutateAsync(Delete, () => Route(discovery, selector, credentials, r => r.Delete), credentials, cancellationToken);
+        => client.MutateAsync(Delete, () => Route(discovery, selector, credentials, Routes.Delete), credentials, cancellationToken);
 
     /// <summary>Selects or, with no name, clears the scope's default once. Operational failures and cancellation return evidence.</summary>
     public Task<NativeAttempt<RunProfileDefaultResult>> DefaultAsync(TargetDiscoveryDocument discovery, RunProfileDefaultRequest request,
         TargetControlCredentials credentials, CancellationToken cancellationToken = default)
-        => client.MutateAsync(Default, () => Route(discovery, request, credentials, r => r.Default), credentials, cancellationToken);
+        => client.MutateAsync(Default, () => Route(discovery, request, credentials, Routes.Default), credentials, cancellationToken);
 
     /// <summary>Submits one run from a stored profile once. The acknowledged run ID can differ from the proposed one.</summary>
     public Task<NativeAttempt<TargetRunReceipt>> RunAsync(TargetDiscoveryDocument discovery, RunProfileRunRequest request,
         TargetControlCredentials credentials, CancellationToken cancellationToken = default)
-        => client.MutateAsync(Run, () => Route(discovery, request, credentials, r => r.Run), credentials, cancellationToken);
+        => client.MutateAsync(Run, () => Route(discovery, request, credentials, Routes.Run), credentials, cancellationToken);
 
-    // Native build_profiles_descriptor compiles all six routes.
     private HttpCall Route(TargetDiscoveryDocument discovery, TargetHttpContract request, TargetControlCredentials credentials,
-        Func<TargetRunProfileRoutes, string> select)
+        CapabilityRoute<TargetRunProfileRoutes> route)
     {
-        var body = NativeClient.HostedBody(discovery, request, credentials);
-        var wire = NativeClient.Advertised(discovery.Extensions.RunProfiles, w => w.Kind, Kind,
-            "The target does not advertise profile management.", "Run-profile discovery is incompatible.");
-        var baseUrl = NativeRoutes.CapabilityBaseUrl(client.Origin, wire.BaseUrl);
-        var routes = wire.RouteTemplates;
-        foreach (var template in new[] { routes.List, routes.Show, routes.Set, routes.Delete, routes.Default, routes.Run })
-            _ = NativeRoutes.CompileLiteralRoute(baseUrl, template);
-        return new(NativeRoutes.CompileLiteralRoute(baseUrl, select(routes)), body);
+        ArgumentNullException.ThrowIfNull(request);
+        return new(Capability.Compile(client.Origin, discovery, credentials).Url(route), NativeJson.SerializeUtf8(request));
+    }
+
+    private static class Routes
+    {
+        internal static readonly CapabilityRoute<TargetRunProfileRoutes> List = new(r => r.List), Show = new(r => r.Show), Set = new(r => r.Set),
+            Delete = new(r => r.Delete), Default = new(r => r.Default), Run = new(r => r.Run);
+        internal static readonly CapabilityRoute<TargetRunProfileRoutes>[] All = [List, Show, Set, Delete, Default, Run];
     }
 }

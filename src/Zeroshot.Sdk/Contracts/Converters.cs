@@ -126,10 +126,10 @@ internal sealed class LastKeyWinsConverterFactory : JsonConverterFactory
 {
     public override bool CanConvert(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ImmutableDictionary<,>);
     public override JsonConverter CreateConverter(Type type, JsonSerializerOptions options) =>
-        (JsonConverter)Activator.CreateInstance(typeof(LastKeyWinsConverter<,>).MakeGenericType(type.GetGenericArguments()), [false])!;
+        (JsonConverter)Activator.CreateInstance(typeof(LastKeyWinsConverter<,>).MakeGenericType(type.GetGenericArguments()))!;
 }
 
-internal sealed class LastKeyWinsConverter<TKey, TValue>(bool pinnedValues) : JsonConverter<ImmutableDictionary<TKey, TValue>> where TKey : notnull
+internal sealed class LastKeyWinsConverter<TKey, TValue> : JsonConverter<ImmutableDictionary<TKey, TValue>> where TKey : notnull
 {
     public override ImmutableDictionary<TKey, TValue> Read(ref Utf8JsonReader reader, Type type, JsonSerializerOptions options)
     {
@@ -140,7 +140,7 @@ internal sealed class LastKeyWinsConverter<TKey, TValue>(bool pinnedValues) : Js
         {
             var key = keys.ReadAsPropertyName(ref reader, typeof(TKey), options);
             reader.Read();
-            map[key] = pinnedValues ? PinnedSchemaMembers.Read<TValue>(ref reader, options) : JsonSerializer.Deserialize<TValue>(ref reader, options)!;
+            map[key] = JsonSerializer.Deserialize<TValue>(ref reader, options)!;
         }
         return map.ToImmutable();
     }
@@ -157,37 +157,62 @@ internal sealed class LastKeyWinsConverter<TKey, TValue>(bool pinnedValues) : Js
     }
 }
 
-// A pinned-schema contract inside a handwritten record checks its schema where it is decoded. The converter
-// sits on the property: on the type it would conflict with the generated polymorphism and unmapped-member attributes.
-internal static class PinnedSchemaMembers
+// Members of a handwritten record follow two native rules its typed decoding cannot see: a pinned-schema contract
+// at any depth of Nullable, Optional, ImmutableArray or map values checks its schema, and an Optional member is
+// null only where native's field is (serde rejects null for a non-Option field). The converter sits on the property:
+// on the type it would conflict with the generated polymorphism and unmapped-member attributes.
+internal static class WireMembers
 {
     internal static void Attach(JsonTypeInfo info)
     {
         if (info.Kind != JsonTypeInfoKind.Object || Pinned(info.Type)) return;
+        var nullability = new NullabilityInfoContext();
         foreach (var property in info.Properties)
         {
-            var type = property.PropertyType;
-            if (Pinned(Nullable.GetUnderlyingType(type) ?? type))
-                property.CustomConverter = (JsonConverter)Activator.CreateInstance(typeof(PinnedSchemaConverter<>).MakeGenericType(type))!;
-            else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ImmutableDictionary<,>) && Pinned(type.GetGenericArguments()[1]))
-                property.CustomConverter = (JsonConverter)Activator.CreateInstance(typeof(LastKeyWinsConverter<,>).MakeGenericType(type.GetGenericArguments()), [true])!;
+            var member = property.AttributeProvider switch
+            {
+                PropertyInfo p => nullability.Create(p), FieldInfo f => nullability.Create(f), _ => null
+            };
+            if (member is not null && Checked(member))
+                property.CustomConverter = (JsonConverter)Activator.CreateInstance(typeof(MemberConverter<>).MakeGenericType(property.PropertyType), member)!;
         }
     }
 
-    internal static T Read<T>(ref Utf8JsonReader reader, JsonSerializerOptions options)
+    private static bool Checked(NullabilityInfo member) => Pinned(Nullable.GetUnderlyingType(member.Type) ?? member.Type) ||
+        Item(member) is { } item && (Checked(item) || Is(member, typeof(Optional<>)) && item is { Type.IsValueType: false, ReadState: NullabilityState.NotNull });
+
+    private static void Check(JsonElement json, NullabilityInfo member)
     {
-        var contract = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
-        var json = JsonElement.ParseValue(ref reader);
-        if (json.ValueKind == JsonValueKind.Null && contract != typeof(T)) return default!;
-        WireValidation.CheckSchema(json, contract);
-        return json.Deserialize<T>(options)!;
+        if (json.ValueKind == JsonValueKind.Null && member.ReadState == NullabilityState.Nullable) return;
+        if (json.ValueKind == JsonValueKind.Null && !member.Type.IsValueType) throw new JsonException("A native field cannot be null.");
+        var type = Nullable.GetUnderlyingType(member.Type) ?? member.Type;
+        if (Pinned(type)) WireValidation.CheckSchema(json, type);
+        else if (Item(member) is { } item) foreach (var value in Values(json, member)) Check(value, item);
     }
 
+    private static IEnumerable<JsonElement> Values(JsonElement json, NullabilityInfo member) => json.ValueKind switch
+    {
+        JsonValueKind.Array when Is(member, typeof(ImmutableArray<>)) => json.EnumerateArray(),
+        JsonValueKind.Object when Is(member, typeof(ImmutableDictionary<,>)) => json.EnumerateObject().Select(p => p.Value),
+        _ when Is(member, typeof(Optional<>)) => [json],
+        _ => [] // Typed decoding refuses an array or map of another JSON kind.
+    };
+
+    private static NullabilityInfo? Item(NullabilityInfo member) =>
+        Is(member, typeof(Optional<>)) || Is(member, typeof(ImmutableArray<>)) ? member.GenericTypeArguments[0] :
+        Is(member, typeof(ImmutableDictionary<,>)) ? member.GenericTypeArguments[1] : null;
+
+    private static bool Is(NullabilityInfo member, Type definition) => member.Type.IsGenericType && member.Type.GetGenericTypeDefinition() == definition;
     private static bool Pinned(Type type) => type.GetCustomAttribute<WireContractAttribute>() is not null;
 
-    private sealed class PinnedSchemaConverter<T> : JsonConverter<T>
+    private sealed class MemberConverter<T>(NullabilityInfo member) : JsonConverter<T>
     {
-        public override T Read(ref Utf8JsonReader reader, Type type, JsonSerializerOptions options) => Read<T>(ref reader, options);
+        public override T Read(ref Utf8JsonReader reader, Type type, JsonSerializerOptions options)
+        {
+            var json = JsonElement.ParseValue(ref reader);
+            Check(json, member);
+            return json.Deserialize<T>(options)!;
+        }
         public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options) => JsonSerializer.Serialize(writer, value, options);
     }
 }

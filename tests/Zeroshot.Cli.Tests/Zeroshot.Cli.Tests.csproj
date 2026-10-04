@@ -12,12 +12,14 @@
   </ItemGroup>
 
   <!-- Release qualification sets ZeroshotCandidateVersion: the tests then use the packed candidate library and drive the
-       CLI named by ZEROSHOT_CLI_COMMAND instead of building either from source. -->
+       CLI named by ZEROSHOT_CLI_COMMAND instead of building either from source. The in-process grammar tests need the
+       source build, so they run only without it. -->
   <ItemGroup Condition="'$(ZeroshotCandidateVersion)' == ''">
     <ProjectReference Include="../../src/Zeroshot.Cli/Zeroshot.Cli.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(ZeroshotCandidateVersion)' != ''">
     <PackageReference Include="Zeroshot.Client" Version="[$(ZeroshotCandidateVersion)]" />
+    <Compile Remove="CommandLineTests.cs" />
   </ItemGroup>
 
 </Project>

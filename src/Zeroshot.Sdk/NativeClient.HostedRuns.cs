@@ -35,18 +35,22 @@ public sealed class NativeHostedRunsClient
         new("hosted_runs.logs", OperationTransport.Http), RequestHeaders.NoStore);
     private static readonly HttpBinding<HostedRunStatusResult> Force = new(
         new("hosted_runs.force", OperationTransport.Http, responseBytes: MaxBytes), refusals: NativeClient.IsHostedRefusal, identity: SameRun);
+    // Native build_hosted_runs_descriptor, whose base URL hosted workspace recovery extends.
+    internal static readonly HttpCapability<TargetHostedRunsDiscovery, TargetHostedRunRoutes> Capability = new(HttpCapability.Hosted,
+        e => e.HostedRuns, w => w.Kind == Kind, w => w.BaseUrl, w => w.RouteTemplates, Routes.All,
+        missing: "The target does not advertise hosted runs.", incompatible: "Hosted run discovery is incompatible.");
     private readonly NativeClient client;
     internal NativeHostedRunsClient(NativeClient client) => this.client = client;
 
     /// <summary>Reads every run the host exposes. Failures throw NativeHttpException.</summary>
     public Task<HostedRunListResult> ListAsync(TargetDiscoveryDocument discovery, TargetControlCredentials credentials,
         CancellationToken cancellationToken = default)
-        => client.ReadAsync(List, () => Route(discovery, credentials, r => r.List, null, null), credentials, cancellationToken);
+        => client.ReadAsync(List, () => Route(discovery, credentials, Routes.List), credentials, cancellationToken);
 
     /// <summary>Reads the exact run, which may still be queued by the host. Failures throw NativeHttpException.</summary>
     public Task<HostedRunStatusResult> StatusAsync(TargetDiscoveryDocument discovery, RunId runId,
         TargetControlCredentials credentials, CancellationToken cancellationToken = default)
-        => client.ReadAsync(Status, () => Route(discovery, credentials, r => r.Status, Required(runId), null), credentials,
+        => client.ReadAsync(Status, () => Route(discovery, credentials, Routes.Status, Required(runId)), credentials,
             cancellationToken, runId);
 
     /// <summary>
@@ -58,8 +62,8 @@ public sealed class NativeHostedRunsClient
     {
         SubscriptionId? subscription = null;
         ResolvedSource? source = null;
-        return OpenAsync<HostedRunWatchEventNotification>(Watch, () => Route(discovery, credentials, r => r.Watch,
-            Valid(parameters).RunId, WatchQuery, ("from_cursor", parameters.FromCursor?.Value)), credentials, record =>
+        return OpenAsync<HostedRunWatchEventNotification>(Watch, () => Route(discovery, credentials, Routes.Watch,
+            Valid(parameters).RunId, ("from_cursor", parameters.FromCursor?.Value)), credentials, record =>
         {
             subscription ??= record.SubscriptionId;
             source ??= record.Source;
@@ -73,8 +77,8 @@ public sealed class NativeHostedRunsClient
         RunLogsParams parameters, TargetControlCredentials credentials, CancellationToken cancellationToken = default)
     {
         SubscriptionId? subscription = null;
-        return OpenAsync<RunLogEventNotification>(Logs, () => Route(discovery, credentials, r => r.Logs, Valid(parameters).RunId,
-            LogsQuery, ("from_cursor", parameters.FromCursor?.Value), ("execution", parameters.Execution?.Value)), credentials, record =>
+        return OpenAsync<RunLogEventNotification>(Logs, () => Route(discovery, credentials, Routes.Logs, Valid(parameters).RunId,
+            ("from_cursor", parameters.FromCursor?.Value), ("execution", parameters.Execution?.Value)), credentials, record =>
         {
             subscription ??= record.SubscriptionId;
             parameters.Require(record, subscription);
@@ -88,7 +92,7 @@ public sealed class NativeHostedRunsClient
     /// </summary>
     public Task<NativeAttempt<HostedRunStatusResult>> ForceAsync(TargetDiscoveryDocument discovery, RunId runId,
         TargetControlCredentials credentials, CancellationToken cancellationToken = default)
-        => client.MutateAsync(Force, () => new HttpCall(Route(discovery, credentials, r => r.Force, Required(runId), null), "{}"u8.ToArray()),
+        => client.MutateAsync(Force, () => new HttpCall(Route(discovery, credentials, Routes.Force, Required(runId)), "{}"u8.ToArray()),
             credentials, cancellationToken, runId);
 
     private static void SameRun(HostedRunStatusResult result, RunId runId)
@@ -117,26 +121,13 @@ public sealed class NativeHostedRunsClient
             (queue, response, body, frameBytes) => new HostedRunStream<TEvent>(queue, response, body, frameBytes, validate), cancellationToken);
 
     private Uri Route(TargetDiscoveryDocument discovery, TargetControlCredentials credentials,
-        Func<TargetHostedRunRoutes, string> select, RunId? runId, string? query, params (string, string?)[] values)
-        => NativeRoutes.RunIdRoute(Base(client.Origin, discovery, credentials, runId),
-            select(discovery.Extensions.HostedRuns!.RouteTemplates), runId?.Value, query, values);
+        CapabilityRoute<TargetHostedRunRoutes> route, RunId? runId = null, params (string, string?)[] query)
+        => Capability.Compile(client.Origin, discovery, credentials).Url(route, runId, query);
 
-    // Native build_hosted_runs_descriptor compiles all five routes before any is used and returns the
-    // capability base, which hosted workspace recovery shares.
-    internal static Uri Base(Uri origin, TargetDiscoveryDocument discovery, TargetControlCredentials credentials, RunId? runId)
+    private static class Routes
     {
-        NativeClient.AdmitHosted(discovery, credentials);
-        if (runId is not null && !NativeRoutes.IsAddressableSegment(runId.Value))
-            throw new ArgumentException("Native cannot address this run ID as one route segment.", nameof(runId));
-        var wire = NativeClient.Advertised(discovery.Extensions.HostedRuns, w => w.Kind, Kind,
-            "The target does not advertise hosted runs.", "Hosted run discovery is incompatible.");
-        var baseUrl = NativeRoutes.CapabilityBaseUrl(origin, wire.BaseUrl);
-        var routes = wire.RouteTemplates;
-        _ = NativeRoutes.RunIdPath(routes.List, requiresRunId: false, query: null);
-        _ = NativeRoutes.RunIdPath(routes.Status, requiresRunId: true, query: null);
-        _ = NativeRoutes.RunIdPath(routes.Watch, requiresRunId: true, WatchQuery);
-        _ = NativeRoutes.RunIdPath(routes.Logs, requiresRunId: true, LogsQuery);
-        _ = NativeRoutes.RunIdPath(routes.Force, requiresRunId: true, query: null);
-        return baseUrl;
+        internal static readonly CapabilityRoute<TargetHostedRunRoutes> List = new(r => r.List), Status = new(r => r.Status, true),
+            Watch = new(r => r.Watch, true, WatchQuery), Logs = new(r => r.Logs, true, LogsQuery), Force = new(r => r.Force, true);
+        internal static readonly CapabilityRoute<TargetHostedRunRoutes>[] All = [List, Status, Watch, Logs, Force];
     }
 }

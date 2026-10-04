@@ -146,29 +146,6 @@ public sealed partial class NativeClient
         if (!IsControllerDiscovery(discovery) || !admits(discovery)) throw new ArgumentException(message, paramName);
     }
 
-    // Native refuses direct targets; only hosted OAuth discovery can carry host-owned capabilities.
-    internal static void AdmitHosted(TargetDiscoveryDocument discovery, TargetControlCredentials credentials)
-    {
-        ArgumentNullException.ThrowIfNull(discovery);
-        ArgumentNullException.ThrowIfNull(credentials);
-        Admit(discovery, d => d.Authentication == TargetAuthentication.HostedOauth && credentials.Authentication == TargetAuthentication.HostedOauth,
-            "Hosted operations require hosted OAuth discovery and matching credentials.");
-    }
-
-    // A hosted management call's body, after its gate.
-    internal static byte[] HostedBody(TargetDiscoveryDocument discovery, TargetHttpContract request, TargetControlCredentials credentials)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        AdmitHosted(discovery, credentials);
-        return NativeJson.SerializeUtf8(request);
-    }
-
-    // Native refuses a missing or foreign capability descriptor before compiling any of its routes.
-    internal static TWire Advertised<TWire>(TWire? wire, Func<TWire, string> kind, string expected, string missing, string incompatible)
-        where TWire : class
-        => wire is null ? throw new ArgumentException(missing)
-            : kind(wire) != expected ? throw new ArgumentException(incompatible) : wire;
-
     // Native's status-derived default codes (default_http_error_code in contract/http_error.rs), which native
     // itself uses only when a response has no parseable problem. A hosted server's own codes are not pinned
     // and native serves no connection, profile or OAuth routes; every other received failure leaves the effect unknown.

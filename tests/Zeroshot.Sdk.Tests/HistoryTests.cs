@@ -184,9 +184,6 @@ public sealed class HistoryTests
         yield return ("dot segment", n => n.History.DetailAsync(Discovery(detail: "/runs/../{run_id}"), run));
         yield return ("double slash", n => n.History.DetailAsync(Discovery(detail: "//runs/{run_id}"), run));
         yield return ("backslash", n => n.History.DetailAsync(Discovery(detail: "/runs\\{run_id}"), run));
-        yield return ("non-UUIDv7 run", n => n.History.DetailAsync(Discovery(), new RunId("018f5e78-7f95-4c22-8d98-3f15af20c991")));
-        yield return ("non-UUIDv7 list position", n => n.History.ListAsync(Discovery(), new RunId("not-a-run")));
-        yield return ("non-canonical cursor", n => n.History.PageAsync(Discovery(), run, new Cursor("v2:01")));
         yield return ("cursor beyond i64", n => n.History.HeadPageAsync(Discovery(), run, new Cursor("v2:9223372036854775808")));
     }
 
@@ -206,8 +203,6 @@ public sealed class HistoryTests
         static JsonNode Run(JsonNode list, int i) => list["runs"]![i]!;
         yield return ("list over 50 entries", "list", n => { var runs = n["runs"]!.AsArray(); for (var i = 0; i < 49; i++) runs.Insert(0, Run(n, 1).DeepClone()); }, null, false);
         yield return ("list not descending", "list", n => { var runs = n["runs"]!.AsArray(); var first = runs[0]!; runs.RemoveAt(0); runs.Add(first); n["nextCursor"] = Run(n, 1)["runId"]!.DeepClone(); }, null, false);
-        yield return ("list entry not after position", "list", _ => { }, "0195af77-1000-7000-8000-000000000010", false);
-        yield return ("list strictly after position", "list", _ => { }, "0195af77-1000-7000-8000-000000000011", true);
         yield return ("list next is not last", "list", n => n["nextCursor"] = "0195af77-1000-7000-8000-000000000010", null, false);
         yield return ("list next without runs", "list", n => n["runs"] = new JsonArray(), null, false);
         yield return ("list final page", "list", n => n["nextCursor"] = null, null, true);
@@ -222,7 +217,6 @@ public sealed class HistoryTests
         yield return ("runtime failure reason differs", "list", n => Run(n, 0)["runtimeFailure"]!["reason"] = "runtime_lost", null, false);
         yield return ("definition version", "definition", n => n["version"] = 2, null, false);
         yield return ("definition projection version", "definition", n => n["projectionVersion"] = 2, null, false);
-        yield return ("definition foreign run", "definition", n => n["runId"] = "0195af77-1000-7000-8000-000000000010", null, false);
         yield return ("definition without history", "definition", n => n["historyAvailable"] = false, null, false);
         yield return ("definition initial cursor", "definition", n => n["history"]!["initialCursor"] = "v2:1", null, false);
         yield return ("definition cursors differ", "definition", n => n["history"]!["cursor"] = "v2:8", null, false);
@@ -240,7 +234,6 @@ public sealed class HistoryTests
         yield return ("page non-canonical head", "page", n => n["headCursor"] = "v2:09", null, false);
         yield return ("page next not last event", "page", n => { n["nextCursor"] = "v2:8"; n["complete"] = false; }, null, false);
         yield return ("page complete mismatch", "page", n => n["complete"] = false, null, false);
-        yield return ("page before request", "page", _ => { }, "v2:9", false);
         yield return ("page partial with more", "page", n => { n["headCursor"] = "v2:12"; n["complete"] = false; n["finished"] = false; n["observation"] = JsonNode.Parse("""{"state":"active"}"""); }, null, true);
         yield return ("page empty with more", "page", n => { n["events"] = new JsonArray(); n["control"] = new JsonArray(); n["nextCursor"] = "v2:0"; n["headCursor"] = "v2:3"; n["complete"] = false; }, null, false);
         yield return ("page empty at head", "page", n => { n["events"] = new JsonArray(); n["control"] = new JsonArray(); }, "v2:9", true);
@@ -327,20 +320,6 @@ public sealed class HistoryTests
             return;
         }
         throw new InvalidOperationException("Expected refusal.");
-    }
-
-    [Test]
-    public async Task HistoryUsesItsNativeListAndProblemBounds()
-    {
-        var transport = new TransportOptions { MaxErrorBodyBytes = 1024 * 1024 };
-        var list = Fixture("list");
-        list["runs"]![1]!["title"] = new string('x', 4 * 1024 * 1024);
-        using var large = ClientFor(new Handler((request, _) => Task.FromResult(Reply(request, list.ToJsonString()))), transport);
-        await Expect(large.History.ListAsync(Discovery()), NativeHttpFailureKind.SizeLimit);
-        var problem = $$$"""{"code":"history_gap","message":"x","details":{"pad":"{{{new string('x', 64 * 1024)}}}"}}""";
-        using var refused = ClientFor(new Handler((request, _) => Task.FromResult(Reply(request, problem, HttpStatusCode.Conflict))), transport);
-        var error = await Expect(refused.History.DetailAsync(Discovery(), new RunId(Run)), NativeHttpFailureKind.SizeLimit);
-        Check(error.StatusCode == HttpStatusCode.Conflict && error.HistoryProblem is null);
     }
 
     [Test]

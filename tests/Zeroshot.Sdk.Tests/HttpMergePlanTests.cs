@@ -101,16 +101,10 @@ public sealed class HttpMergePlanTests
     }
 
     [Test]
-    public async Task UnaddressablePlanIdsAndInvalidRequestsFailBeforeDispatch()
+    public async Task InvalidRequestsFailBeforeDispatchAndAnEmptyIdIsAnEmptySegment()
     {
         using var handler = new Handler((request, _) => Task.FromResult(Reply(request, Plan())));
         using var client = ClientFor(handler);
-        // Native would drop or rewrite these segments and address a different route.
-        foreach (var id in new[] { ".", "..", "plan\t1", "plan\r1", "plan\n1" })
-        {
-            await Invalid(() => client.MergePlans.StatusAsync(Discovery(Capability), new(id), Hosted), Secret, Bearer);
-            await Invalid(() => client.MergePlans.ForceAsync(Discovery(Capability), new(id), Hosted), Secret, Bearer);
-        }
         var runs = Enumerable.Range(0, 65).Select(i => Run($"run-{i}")).ToImmutableArray();
         foreach (var request in new[]
         {

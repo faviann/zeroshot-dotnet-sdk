@@ -24,11 +24,9 @@ public sealed class NativePrivateClient
     // Two retained diagnostics of at most 2 x 4 KiB text each, escaped, fit well inside native's normal 64 KiB bound.
     private static readonly HttpBinding<TargetOperatorDiagnostics> Diagnostics = new(new("private.operatorDiagnostics", OperationTransport.Http,
         responseBytes: 64 * 1024), identity: DiagnosticsOf);
-    // Native transport_history.rs admits at most 4096 request bytes; responses keep #35's history bounds.
-    private static readonly HttpBinding<RunDefinition> Definition = new(new("private.history.definition", OperationTransport.Http,
-        requestBytes: 4096, responseBytes: 8 * 1024 * 1024), identity: RunHistoryRules.Definition, response: HttpResponsePolicy.History(HttpProblemDialect.Target));
-    private static readonly HttpBinding<HistoryPage> Page = new(new("private.history.page", OperationTransport.Http,
-        requestBytes: 4096, responseBytes: 8 * 1024 * 1024), response: HttpResponsePolicy.History(HttpProblemDialect.Target));
+    // Native transport_history.rs admits at most 4096 request bytes.
+    private static readonly RunHistoryReads History = new((null, "private.history.definition", "private.history.page"),
+        HttpProblemDialect.Target, requestBytes: 4096);
     private const int DiagnosticTextBytes = 4 * 1024;
     private readonly NativeClient client;
     internal NativePrivateClient(NativeClient client) => this.client = client;
@@ -78,7 +76,8 @@ public sealed class NativePrivateClient
         CancellationToken cancellationToken = default)
         => client.ReadAsync(Diagnostics, () =>
         {
-            Require(runId, credentials);
+            RunHistoryRules.RequireRunId(runId, nameof(runId));
+            Authority(credentials);
             return new Uri(client.Origin, "/native-v2/operator-diagnostics/" + runId.Value);
         }, credentials, cancellationToken, runId);
 
@@ -92,12 +91,8 @@ public sealed class NativePrivateClient
     /// <summary>Reads the admitted definition through the private export, with the public history checks.</summary>
     public Task<RunDefinition> GetHistoryDefinitionAsync(RunId runId, TargetControlCredentials credentials,
         CancellationToken cancellationToken = default)
-        => client.ReadAsync(Definition, () =>
-        {
-            Require(runId, credentials);
-            return new HttpCall(new Uri(client.Origin, "/native-v2/history/definition"),
-                NativeJson.SerializeUtf8(new PrivateHistoryDefinitionRequest { RunId = runId }));
-        }, credentials, cancellationToken, runId);
+        => History.DefinitionAsync(client, runId,
+            id => Export("definition", new PrivateHistoryDefinitionRequest { RunId = id }, credentials), credentials, cancellationToken);
 
     /// <summary>
     /// Reads one bounded page strictly after <paramref name="after"/>. Omitting it sends no cursor, which
@@ -105,18 +100,18 @@ public sealed class NativePrivateClient
     /// </summary>
     public Task<HistoryPage> GetHistoryPageAsync(RunId runId, TargetControlCredentials credentials, Cursor? after = null,
         CancellationToken cancellationToken = default)
-        => client.ReadAsync(Page, () =>
-        {
-            Require(runId, credentials);
-            if (after is not null) RunHistoryRules.RequireCursor(after, nameof(after));
-            return new HttpCall(new Uri(client.Origin, "/native-v2/history/page"),
-                NativeJson.SerializeUtf8(new PrivateHistoryPageRequest { RunId = runId, After = after }));
-        }, credentials, cancellationToken, validate: page => RunHistoryRules.Page(page, after ?? RunHistoryRules.InitialCursor));
+        => History.PageAsync(client, runId, after,
+            (id, sent) => Export("page", new PrivateHistoryPageRequest { RunId = id, After = sent }, credentials), credentials, cancellationToken);
+
+    private HttpCall Export<T>(string read, T request, TargetControlCredentials credentials)
+    {
+        Authority(credentials);
+        return new(new Uri(client.Origin, "/native-v2/history/" + read), NativeJson.SerializeUtf8(request));
+    }
 
     // Ordinary run or hosted credentials never become operator authority.
-    private static void Require(RunId runId, TargetControlCredentials credentials)
+    private static void Authority(TargetControlCredentials credentials)
     {
-        RunHistoryRules.RequireRunId(runId, nameof(runId));
         ArgumentNullException.ThrowIfNull(credentials);
         if (credentials.Authentication != TargetAuthentication.PrivateCapability)
             throw new ArgumentException("Private exports require the private capability.", nameof(credentials));
