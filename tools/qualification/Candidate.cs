@@ -46,6 +46,7 @@ internal static class Candidate
         if (Environment.GetEnvironmentVariable("GITHUB_REF") is { } gitRef && gitRef.StartsWith("refs/tags/v", StringComparison.Ordinal)
             && (gitRef != $"refs/tags/v{version}" || !tags.Contains("v" + version)))
             throw new QualificationException($"{gitRef} does not name version {version} at the checked-out commit.");
+        NativePin.Check(version);
         foreach (var spec in new[] { clientSpec, cliSpec })
         {
             var repository = spec.Elements().Single(e => e.Name.LocalName == "repository");
@@ -64,8 +65,8 @@ internal static class Candidate
         var command = Path.Combine(tool, "zeroshot-dotnet.dll");
         var expectedVersion = $"{version}+{commit}";
         var reported = Tools.Checked(Tools.DotnetHost, [command, "--version"]).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (!reported.SequenceEqual([$"zeroshot-dotnet {expectedVersion}", $"Zeroshot.Client {expectedVersion}"]))
-            throw new QualificationException($"zeroshot-dotnet --version reports '{string.Join(" / ", reported)}', not {expectedVersion}.");
+        if (!reported.SequenceEqual([$"zeroshot-dotnet {expectedVersion}", $"Zeroshot.Client {expectedVersion}", Required.NativeLine]))
+            throw new QualificationException($"zeroshot-dotnet --version reports '{string.Join(" / ", reported)}', not {expectedVersion} / {Required.NativeLine}.");
 
         // The contract: package metadata and the CLI grammar read from the candidate itself. Any change must be
         // committed to tools/qualification/contract.txt, so it is reviewed rather than discovered.
@@ -199,7 +200,8 @@ internal static class Candidate
 
     /// <summary>
     /// The machine-readable output, read from the packed tool itself: the record catalog that the CLI enforces on every
-    /// cli/v1 record it writes, and every versioned file or record schema the CLI and library declare.
+    /// cli/v1 record it writes, every versioned file or record schema the CLI and library declare, and the native binding
+    /// that configurations and run files must declare.
     /// </summary>
     private static IEnumerable<string> OutputLines(string command)
     {
@@ -212,6 +214,9 @@ internal static class Candidate
             foreach (var field in fields) yield return $"cli output {kind} {field}";
         }
         var library = Assembly.LoadFrom(Path.Combine(Path.GetDirectoryName(command)!, "Zeroshot.Client.dll"));
+        // A cli line, so the compatibility gate treats another native binding as a removed baseline entry.
+        var schemas = library.GetType("Zeroshot.Native.NativeSchemas", throwOnError: true)!;
+        yield return $"cli native-binding {schemas.GetField("NativeVersion")!.GetValue(null)} {schemas.GetField("SourceRevision")!.GetValue(null)}";
         foreach (var type in cli.GetTypes().Concat(library.GetTypes()))
             foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
                 if (field is { Name: "Schema", IsLiteral: true } && field.GetRawConstantValue() is string schema && schema.StartsWith("zeroshot-dotnet/", StringComparison.Ordinal))

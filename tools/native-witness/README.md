@@ -21,12 +21,12 @@ fails explicitly. `ZEROSHOT_WITNESS_ARCHIVE` can supply a cached archive, which 
 must pass the pinned checksum check. Python prepares and compares test assets;
 consumers and the client library do not depend on it.
 
-Pinned provenance:
+Pinned provenance, read from [`native.props`](../../native.props), the repository's one native pin:
 
 - Native version: **10.10.0**.
 - [Source revision](https://github.com/the-open-engine/zeroshot/tree/3ee1192cec359a0b997f464e703a936e8b67d63c): `3ee1192cec359a0b997f464e703a936e8b67d63c`.
 - [Release](https://github.com/the-open-engine/zeroshot/releases/tag/v10.10.0) names that source revision in its `target_commitish`.
-- The Linux x64 musl archive SHA-256 (the release's `SHA256SUMS`) and the extracted `zeroshot` executable SHA-256 are the `readonly` values at the top of `run.sh`. Each run checks both.
+- The Linux x64 musl archive SHA-256 (the release's `SHA256SUMS`) and the extracted `zeroshot` executable SHA-256 are its `ZeroshotNativeLinuxX64*Sha256` values. Each run checks both.
 
 Each run also appends the SDK build under test to `provenance.txt`: the repository
 commit, whether the worktree was clean, `dotnet --version` and the SHA-256 of the packed

@@ -72,7 +72,8 @@ tags and on demand. `tools/qualification` does the work, and each step also runs
    values, the source commit and the release tag, which is `null` for a pull request. The
    step checks that both packages have one version and name the source commit and the
    repository, that the tool bundles the library package's exact `Zeroshot.Client.dll`, and
-   that `zeroshot-dotnet --version` names that version and commit. On a `v*` tag run, the
+   that `zeroshot-dotnet --version` names that version and commit and the
+   [native release](#native-compatibility) the library binds. On a `v*` tag run, the
    tag must name that version. Package metadata, license, dependencies, files, the CLI
    grammar, the `--json` record kinds and fields, and the versioned file schemas, all read
    from the candidate, must equal [`contract.txt`](tools/qualification/contract.txt). The
@@ -157,11 +158,28 @@ A new GitHub package is private. If `verify-publication` reports a private packa
 package owner opens the package settings on GitHub, changes the visibility to public, and
 re-runs the failed job. Nothing is pushed again.
 
-SDK versions are independent of native Zeroshot versions. `0.2.0-preview.1` supports
-native Zeroshot 10.10.0 at source `3ee1192cec359a0b997f464e703a936e8b67d63c` only.
-`0.1.0-preview.1` supports native 10.9.0 at source
-`75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa` only. Move your native pin and target image
+## Native compatibility
+
+SDK versions are independent of native Zeroshot versions. Each SDK release supports exactly
+one native release, at one source revision, listed in this table:
+
+| SDK version | Native Zeroshot | Source revision |
+| --- | --- | --- |
+| `0.1.0-preview.1` | 10.9.0 | `75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa` |
+| `0.2.0-preview.1` | 10.10.0 | `3ee1192cec359a0b997f464e703a936e8b67d63c` |
+
+The `zeroshot-native-<version>` package tag, the package description and
+`zeroshot-dotnet --version` name the same release. Move your native pin and target image
 together with the SDK; [the 0.2 migration notes](docs/migration/0.2.md) list every change.
+
+The repository pins that release once, in [`native.props`](native.props). The library's
+`NativeSchemas`, the package metadata, the qualification tool and the native witnesses
+read it. The **candidate** step refuses the candidate when this table has no row for its
+version with that pin, or when a tracked file names another native version or source
+revision outside the table and the short allowlist in
+[`NativePin.cs`](tools/qualification/NativePin.cs). Its contract also records the binding
+as `cli native-binding`, so a release that binds another native release is a breaking
+change: it needs a later minor version and migration notes.
 
 ## Using the published package
 

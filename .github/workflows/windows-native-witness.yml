@@ -13,6 +13,7 @@ on:
       - tools/native-witness/controller-provider.py
       - tools/native-witness/windows-controller.ps1
       - tools/native-witness/windows/**
+      - native.props
       - .github/workflows/windows-native-witness.yml
 
 jobs:

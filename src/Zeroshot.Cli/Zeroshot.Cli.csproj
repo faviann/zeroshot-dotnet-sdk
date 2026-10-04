@@ -10,7 +10,7 @@
     <PackageId>Zeroshot.Cli</PackageId>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>zeroshot-dotnet</ToolCommandName>
-    <Description>Locally built zeroshot-dotnet command over the Zeroshot.Client SDK.</Description>
+    <Description>Locally built zeroshot-dotnet command over the Zeroshot.Client SDK for native Zeroshot $(ZeroshotNativeVersion) (source $(ZeroshotNativeSourceRevision)).</Description>
   </PropertyGroup>
 
   <ItemGroup>

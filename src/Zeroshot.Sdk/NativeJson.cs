@@ -79,10 +79,13 @@ public static class NativeJson
 /// <summary>Pinned, local schema data. No compiler or remote compilation operation is supplied.</summary>
 public static class NativeSchemas
 {
-    public static readonly string NativeVersion = "10.10.0";
-    public static readonly string SourceRevision = "3ee1192cec359a0b997f464e703a936e8b67d63c";
+    // Both come from native.props, the repository's one native pin, through assembly metadata.
+    public static readonly string NativeVersion = Pin("ZeroshotNativeVersion");
+    public static readonly string SourceRevision = Pin("ZeroshotNativeSourceRevision");
     public static byte[] ExportCompiledIrUtf8() => Read("compiled-ir.schema.json");
     public static byte[] ExportContractsUtf8() => Read("contracts.schema.json");
+    private static string Pin(string key)
+        => typeof(NativeSchemas).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(pin => pin.Key == key).Value!;
     internal static byte[] Read(string name)
     {
         using var stream = typeof(NativeSchemas).Assembly.GetManifestResourceStream("Zeroshot.Schemas." + name)

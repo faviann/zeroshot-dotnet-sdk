@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -81,8 +82,14 @@ internal static class Required
     public static bool MayBeUnobserved(bool windows, string entry) => windows && entry == "error attempt.cancelled";
 
     public const string Repository = "https://github.com/faviann/zeroshot-dotnet-sdk";
-    public const string NativeVersion = "10.10.0";
-    public const string NativeSourceRevision = "3ee1192cec359a0b997f464e703a936e8b67d63c";
+    // The native pin, from native.props through this tool's assembly metadata.
+    public static readonly string NativeVersion = Pin("ZeroshotNativeVersion");
+    public static readonly string NativeSourceRevision = Pin("ZeroshotNativeSourceRevision");
+
+    /// <summary>The last line of <c>zeroshot-dotnet --version</c>: the native release the bundled library binds.</summary>
+    public static string NativeLine => $"native Zeroshot {NativeVersion} {NativeSourceRevision}";
+
+    private static string Pin(string key) => typeof(Required).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(pin => pin.Key == key).Value!;
 }
 
 internal static class Tools

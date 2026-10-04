@@ -27,9 +27,10 @@ public static class CliApp
             if (args is ["--version"])
             {
                 // Both builds' informational versions carry the source revision, so an installed command names the
-                // exact CLI and library it runs.
+                // exact CLI and library it runs, and the one native release that library binds.
                 stdout.WriteLine($"zeroshot-dotnet {Version(typeof(CliApp))}");
                 stdout.WriteLine($"Zeroshot.Client {Version(typeof(ZeroshotClient))}");
+                stdout.WriteLine($"native Zeroshot {NativeSchemas.NativeVersion} {NativeSchemas.SourceRevision}");
                 return ExitCodes.Success;
             }
             var invocation = CommandLine.Parse(args);

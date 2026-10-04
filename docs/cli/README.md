@@ -34,13 +34,18 @@ dotnet tool install Zeroshot.Cli --version 0.2.0-preview.1 --source ./packages -
 
 Run a local tool as `dotnet tool run zeroshot-dotnet -- ARGUMENTS`. Without `--`,
 `dotnet tool run` handles `--help` itself. `zeroshot-dotnet --version` prints the command's
-and its `Zeroshot.Client` library's versions, each followed by `+` and the source commit.
+and its `Zeroshot.Client` library's versions, each followed by `+` and the source commit,
+then the one native release that library binds:
 
-These are SDK versions, independent of native Zeroshot versions. Version
-`0.2.0-preview.1` supports native Zeroshot 10.10.0 at source
-`3ee1192cec359a0b997f464e703a936e8b67d63c` only. Version `0.1.0-preview.1` supports native
-10.9.0 at source `75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa` only, so its configurations
-declare that release.
+```text
+zeroshot-dotnet 0.2.0-preview.1+<commit>
+Zeroshot.Client 0.2.0-preview.1+<commit>
+native Zeroshot 10.10.0 3ee1192cec359a0b997f464e703a936e8b67d63c
+```
+
+These are SDK versions, independent of native Zeroshot versions. Each one supports exactly
+one native release, listed in the [native compatibility table](../../README.md#native-compatibility),
+and its configurations declare that release.
 
 ## Prepare a retained request
 

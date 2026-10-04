@@ -394,8 +394,8 @@ internal static class PlatformLeg
     {
         var expected = $"{candidate.Version}+{candidate.Commit}";
         var lines = reported.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (!lines.SequenceEqual([$"zeroshot-dotnet {expected}", $"Zeroshot.Client {expected}"]))
-            throw new QualificationException($"--version reports '{string.Join(" / ", lines)}', not {expected}.");
+        if (!lines.SequenceEqual([$"zeroshot-dotnet {expected}", $"Zeroshot.Client {expected}", Required.NativeLine]))
+            throw new QualificationException($"--version reports '{string.Join(" / ", lines)}', not {expected} / {Required.NativeLine}.");
     }
 
     /// <summary>Every installed copy of the command under <paramref name="root"/> is the candidate's.</summary>
