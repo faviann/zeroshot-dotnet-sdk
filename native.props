@@ -1,0 +1,18 @@
+<Project>
+  <!-- The one native Zeroshot release this SDK binds (README "Native compatibility"). The library's NativeSchemas, the
+       package tags and descriptions, the qualification tool and the native witness scripts all read these values, and
+       release qualification refuses a tracked file that mentions any other native version or source revision. -->
+  <PropertyGroup>
+    <ZeroshotNativeVersion>10.10.0</ZeroshotNativeVersion>
+    <ZeroshotNativeSourceRevision>3ee1192cec359a0b997f464e703a936e8b67d63c</ZeroshotNativeSourceRevision>
+    <!-- The stock release archives the witnesses download, and the executables they extract. -->
+    <ZeroshotNativeLinuxX64ArchiveSha256>fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16</ZeroshotNativeLinuxX64ArchiveSha256>
+    <ZeroshotNativeLinuxX64ExecutableSha256>d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e</ZeroshotNativeLinuxX64ExecutableSha256>
+    <ZeroshotNativeWindowsX64ArchiveSha256>74a857efde74a678e2dd3c956f672a13f671bafe0992f42b891a3ab904a65f9c</ZeroshotNativeWindowsX64ArchiveSha256>
+    <ZeroshotNativeWindowsX64ExecutableSha256>d8f4d6bb61aaab2083486e5048e70720048042ffe264a459eed0879c2aaa5eb7</ZeroshotNativeWindowsX64ExecutableSha256>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="ZeroshotNativeVersion" Value="$(ZeroshotNativeVersion)" />
+    <AssemblyMetadata Include="ZeroshotNativeSourceRevision" Value="$(ZeroshotNativeSourceRevision)" />
+  </ItemGroup>
+</Project>

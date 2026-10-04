@@ -4,11 +4,14 @@ set -euo pipefail
 [[ $(uname -s) == Linux && $(uname -m) == x86_64 ]] || { echo 'Linux x64 is required.' >&2; exit 1; }
 repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 witness_dir=$(mktemp -d "${TMPDIR:-/tmp}/zeroshot-native-witness.XXXXXXXX")
-readonly native_version=10.10.0
-readonly source_revision=3ee1192cec359a0b997f464e703a936e8b67d63c
-readonly archive=zeroshot-v10.10.0-x86_64-unknown-linux-musl.tar.gz
-readonly archive_sha256=fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16
-readonly executable_sha256=d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e
+# The native pin, from the repository's one copy.
+pin() { sed -n "s:.*<$1>\(.*\)</$1>.*:\1:p" "$repo_dir/native.props" | grep . || { echo "native.props has no $1." >&2; exit 1; }; }
+native_version=$(pin ZeroshotNativeVersion)
+source_revision=$(pin ZeroshotNativeSourceRevision)
+archive_sha256=$(pin ZeroshotNativeLinuxX64ArchiveSha256)
+executable_sha256=$(pin ZeroshotNativeLinuxX64ExecutableSha256)
+readonly native_version source_revision archive_sha256 executable_sha256
+readonly archive=zeroshot-v$native_version-x86_64-unknown-linux-musl.tar.gz
 native_pid=''
 native_target_pid=''
 native_control=()

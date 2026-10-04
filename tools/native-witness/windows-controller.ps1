@@ -36,11 +36,14 @@ $PSNativeCommandUseErrorActionPreference = $true
 if (-not $IsWindows -or [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne 'X64') { throw 'Windows x64 is required.' }
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 $witness = Join-Path ([IO.Path]::GetTempPath()) ("zsw-" + [Guid]::NewGuid().ToString('N').Substring(0, 8))
-$nativeVersion = '10.10.0'
-$sourceRevision = '3ee1192cec359a0b997f464e703a936e8b67d63c'
-$archive = 'zeroshot-v10.10.0-x86_64-pc-windows-msvc.tar.gz'
-$archiveSha256 = '74a857efde74a678e2dd3c956f672a13f671bafe0992f42b891a3ab904a65f9c'
-$executableSha256 = 'd8f4d6bb61aaab2083486e5048e70720048042ffe264a459eed0879c2aaa5eb7'
+# The native pin, from the repository's one copy.
+$pin = ([xml] (Get-Content -Raw "$repo/native.props")).Project.PropertyGroup
+$nativeVersion = $pin.ZeroshotNativeVersion
+$sourceRevision = $pin.ZeroshotNativeSourceRevision
+$archive = "zeroshot-v$nativeVersion-x86_64-pc-windows-msvc.tar.gz"
+$archiveSha256 = $pin.ZeroshotNativeWindowsX64ArchiveSha256
+$executableSha256 = $pin.ZeroshotNativeWindowsX64ExecutableSha256
+if (-not ($nativeVersion -and $sourceRevision -and $archiveSha256 -and $executableSha256)) { throw 'native.props is missing a native pin.' }
 New-Item -ItemType Directory -Path $witness, "$witness/bin", "$witness/feed", "$witness/packages", "$witness/controller-consumer",
     "$witness/controller-source", "$witness/controller-fake", "$witness/controller-home", "$witness/controller-config" | Out-Null
 $provenance = "$witness/provenance.txt"

@@ -44,7 +44,7 @@ public sealed class PrepareTests
     }
 
     [Test]
-    public async Task VersionNamesTheCommandAndTheLibraryBuildItRuns()
+    public async Task VersionNamesTheCommandTheLibraryBuildItRunsAndTheNativeReleaseItBinds()
     {
         using var workspace = new CliWorkspace();
         var result = await workspace.RunAsync("--version");
@@ -52,11 +52,12 @@ public sealed class PrepareTests
         await Assert.That(result.ExitCode).IsEqualTo(0);
         await Assert.That(result.Stderr).IsEmpty();
         var lines = result.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        await Assert.That(lines.Length).IsEqualTo(2);
+        await Assert.That(lines.Length).IsEqualTo(3);
         await Assert.That(lines[0]).StartsWith("zeroshot-dotnet ");
         await Assert.That(lines[1]).StartsWith("Zeroshot.Client ");
         // The command and its library are one build: the same version and source revision.
         await Assert.That(lines[1]["Zeroshot.Client ".Length..]).IsEqualTo(lines[0]["zeroshot-dotnet ".Length..]);
+        await Assert.That(lines[2]).IsEqualTo($"native Zeroshot {Zeroshot.Native.NativeSchemas.NativeVersion} {Zeroshot.Native.NativeSchemas.SourceRevision}");
     }
 
     [Test]
