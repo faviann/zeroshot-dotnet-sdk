@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Zeroshot.Sdk/Zeroshot.Sdk.csproj" />
+    <InternalsVisibleTo Include="Zeroshot.Cli.Tests" />
   </ItemGroup>
 
 </Project>

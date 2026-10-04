@@ -10,6 +10,9 @@
   <ItemGroup>
     <PackageReference Include="TUnit" Version="1.68.17" />
     <ProjectReference Include="../../tools/qualification/Qualification.csproj" />
+    <!-- Only for its built zeroshot-dotnet.dll, which the contract test reads as pack reads the packed one. -->
+    <ProjectReference Include="../../src/Zeroshot.Cli/Zeroshot.Cli.csproj" />
+    <None Include="../../tools/qualification/contract.txt" Link="contract.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

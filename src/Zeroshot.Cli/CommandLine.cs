@@ -10,14 +10,6 @@ internal sealed class Invocation(string command, HashSet<string> flags, Dictiona
 
     public bool Flag(string name) => flags.Contains(name);
     public string? Value(string name) => values.GetValueOrDefault(name);
-    public string Required(string name)
-        => Value(name) ?? throw CliFailure.Invocation($"'{Command}' requires {name}.");
-
-    public void Exclusive(string first, string second)
-    {
-        if (Has(first) && Has(second)) throw CliFailure.Invocation($"{first} and {second} cannot be combined.");
-    }
-
     public bool Has(string name) => flags.Contains(name) || values.ContainsKey(name);
 
     public TimeSpan? Duration(string name)
@@ -36,34 +28,89 @@ internal sealed class Invocation(string command, HashSet<string> flags, Dictiona
     }
 }
 
-/// <summary>The accepted command grammar. Every command also takes --json and --help.</summary>
+/// <summary>A flag, or an option whose value the synopsis shows as <see cref="Value"/>.</summary>
+internal sealed record Option(string Name, string? Value = null)
+{
+    public override string ToString() => Value is null ? Name : $"{Name} {Value}";
+}
+
+/// <summary>Options shown and checked together: at most one of them may be given, and one must be when required.</summary>
+internal sealed record Group(bool Required, params Option[] Options);
+
+/// <summary>
+/// One command's grammar in synopsis order: positional arguments, then option groups. RUN is RUN_ID with --config, or
+/// --run-file instead with an optional matching --config, so a command that takes it accepts both options.
+/// </summary>
+internal sealed record Command(string Name, string[] Positionals, params Group[] Groups)
+{
+    public bool TakesRun => Positionals is ["RUN", ..];
+    public IEnumerable<Option> Options => [.. TakesRun ? CommandLine.RunOptions : [], .. Groups.SelectMany(group => group.Options)];
+
+    /// <summary>The rules beyond single options, in this order: exclusive options, the positional count, required options.</summary>
+    public void Check(Invocation invocation)
+    {
+        foreach (var group in Groups)
+            if (group.Options.Where(option => invocation.Has(option.Name)).ToList() is [var first, var second, ..])
+                throw CliFailure.Invocation($"{first.Name} and {second.Name} cannot be combined.");
+        var runFile = TakesRun && invocation.Has(CommandLine.RunFile.Name);
+        if (invocation.Positionals.Count != Positionals.Length - (runFile ? 1 : 0))
+        {
+            var rest = string.Join(' ', Positionals.Skip(1));
+            throw CliFailure.Invocation(!TakesRun ? $"'{Name}' takes {string.Join(' ', Positionals)}."
+                : rest.Length == 0 ? $"'{Name}' takes one RUN_ID, or --run-file FILE instead."
+                : $"'{Name}' takes RUN_ID {rest}, or {rest} with --run-file FILE.");
+        }
+        foreach (var group in Groups.Where(group => group.Required))
+            if (!group.Options.Any(option => invocation.Has(option.Name)))
+                throw CliFailure.Invocation($"'{Name}' requires {string.Join(" or ", group.Options.Select(option => option.Name))}.");
+        if (TakesRun && !runFile && !invocation.Has(CommandLine.Config.Name))
+            throw CliFailure.Invocation("RUN_ID requires --config FILE naming its target.");
+    }
+}
+
+/// <summary>
+/// The accepted command grammar, declared once: the parser enforces it, the help synopsis shows it and release
+/// qualification reads it from the packed tool through <see cref="CliContract.Commands"/>.
+/// </summary>
 internal static class CommandLine
 {
-    private sealed record Grammar(string[] Flags, string[] Values, int MaxPositionals);
+    public static readonly Option Config = new("--config", "FILE"), RunFile = new("--run-file", "FILE");
+    public static readonly Option[] RunOptions = [RunFile, Config];
+    private static readonly Option Request = new("--request", "FILE"), Out = new("--out", "FILE"), Overwrite = new("--overwrite"),
+        Prepared = new("--prepared", "FILE"), Detach = new("--detach"), Timeout = new("--timeout", "WAIT"),
+        SaveRequest = new("--save-request", "FILE"), SaveRun = new("--save-run", "FILE"), RequestTimeout = new("--request-timeout", "DURATION"),
+        After = new("--after", "CURSOR"), Checkpoint = new("--checkpoint", "FILE"), Recovery = new("--recovery", "MODE"),
+        Execution = new("--execution", "EXECUTION"), WaitTimeout = new("--wait-timeout", "WAIT"), RequestOnly = new("--request-only");
 
-    private static readonly string[] TargetOptions = ["--config", "--request-timeout"];
-    private static readonly string[] KnownRun = ["--run-file", .. TargetOptions];
-    private static readonly string[] History = [.. KnownRun, "--after", "--checkpoint", "--recovery"];
+    /// <summary>Flags every command accepts.</summary>
+    public static readonly Option[] Every = [new("--json"), new("--help")];
+    /// <summary>Options given alone instead of a command.</summary>
+    public static readonly Option[] Alone = [new("--version")];
 
-    private static readonly Dictionary<string, Grammar> Commands = new(StringComparer.Ordinal)
-    {
-        ["prepare"] = new(["--overwrite"], ["--request", "--out"], 0),
-        ["run"] = new(["--detach", "--overwrite"],
-            ["--request", "--prepared", "--timeout", "--save-request", "--save-run", .. TargetOptions], 0),
-        ["status"] = new([], KnownRun, 1),
-        ["wait"] = new([], [.. KnownRun, "--timeout"], 1),
-        ["watch"] = new([], History, 1),
-        ["logs"] = new([], [.. History, "--execution"], 1),
-        ["attach"] = new([], KnownRun, 2),
-        ["force-stop"] = new(["--request-only"], [.. KnownRun, "--wait-timeout"], 1),
-    };
+    public static readonly Command[] Commands =
+    [
+        new("prepare", [], Required(Request), Required(Out), Optional(Overwrite)),
+        new("run", [], Required(Config), Required(Request, Prepared), Optional(Detach, Timeout), Optional(SaveRequest), Optional(SaveRun),
+            Optional(Overwrite), Optional(RequestTimeout)),
+        new("status", ["RUN"], Optional(RequestTimeout)),
+        new("wait", ["RUN"], Optional(Timeout), Optional(RequestTimeout)),
+        new("watch", ["RUN"], Optional(After, Checkpoint), Optional(Recovery), Optional(RequestTimeout)),
+        new("logs", ["RUN"], Optional(Execution), Optional(After, Checkpoint), Optional(Recovery), Optional(RequestTimeout)),
+        new("attach", ["RUN", "EXECUTION"], Optional(RequestTimeout)),
+        new("force-stop", ["RUN"], Optional(WaitTimeout, RequestOnly), Optional(RequestTimeout)),
+    ];
 
-    public static bool IsCommand(string name) => Commands.ContainsKey(name);
+    private static Group Required(params Option[] options) => new(true, options);
+    private static Group Optional(params Option[] options) => new(false, options);
 
+    public static bool IsCommand(string name) => Commands.Any(command => command.Name == name);
+
+    /// <summary>Parses one command and, unless it asks for help, checks it against the command's grammar.</summary>
     public static Invocation Parse(string[] args)
     {
-        if (!Commands.TryGetValue(args[0], out var grammar))
-            throw CliFailure.Invocation($"Unknown command '{args[0]}'.");
+        var command = Commands.FirstOrDefault(command => command.Name == args[0])
+            ?? throw CliFailure.Invocation($"Unknown command '{args[0]}'.");
+        var options = Every.Concat(command.Options).ToDictionary(option => option.Name, StringComparer.Ordinal);
         var flags = new HashSet<string>(StringComparer.Ordinal);
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
         var positionals = new List<string>();
@@ -74,11 +121,12 @@ internal static class CommandLine
             // references allow it); the separate form refuses such a value as a probably forgotten one.
             var (name, inline) = arg.IndexOf('=') is > 2 and var at && arg.StartsWith("--", StringComparison.Ordinal)
                 ? (arg[..at], arg[(at + 1)..]) : (arg, null);
-            if (inline is null && (arg is "--json" or "--help" || grammar.Flags.Contains(arg)))
+            var option = options.GetValueOrDefault(name);
+            if (inline is null && option is { Value: null })
             {
                 if (!flags.Add(arg)) throw CliFailure.Invocation($"{arg} was given more than once.");
             }
-            else if (grammar.Values.Contains(name))
+            else if (option is { Value: not null })
             {
                 if (inline is null && (i + 1 == args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal)))
                     throw CliFailure.Invocation($"{name} requires a value.");
@@ -86,29 +134,43 @@ internal static class CommandLine
             }
             else if (arg.StartsWith('-'))
                 throw CliFailure.Invocation($"'{args[0]}' does not accept {arg}.");
-            else if (positionals.Count == grammar.MaxPositionals)
+            else if (positionals.Count == command.Positionals.Length)
                 throw CliFailure.Invocation($"Unexpected argument '{arg}'.");
             else positionals.Add(arg);
         }
-        return new Invocation(args[0], flags, values, positionals);
+        var invocation = new Invocation(args[0], flags, values, positionals);
+        if (!invocation.Help) command.Check(invocation);
+        return invocation;
+    }
+
+    /// <summary>Each command's usage line, wrapped at 100 columns under its first argument.</summary>
+    private static IEnumerable<string> Synopsis()
+    {
+        foreach (var command in Commands)
+        {
+            var lead = $"  zeroshot-dotnet {command.Name}";
+            var lines = new List<string> { lead };
+            foreach (var part in command.Positionals.Concat(command.Groups.Select(Show)))
+            {
+                if (lines[^1].Length + 1 + part.Length > 100) lines.Add(new string(' ', lead.Length));
+                lines[^1] += " " + part;
+            }
+            yield return string.Join('\n', lines);
+        }
+        foreach (var option in Alone) yield return $"  zeroshot-dotnet {option}";
+    }
+
+    private static string Show(Group group)
+    {
+        var options = string.Join(" | ", group.Options);
+        return !group.Required ? $"[{options}]" : group.Options.Length > 1 ? $"({options})" : options;
     }
 
     public static readonly string Usage = $"""
         zeroshot-dotnet: thin command line over the Zeroshot .NET SDK (native {Native.NativeSchemas.NativeVersion}).
 
         Usage:
-          zeroshot-dotnet prepare --request FILE --out FILE [--overwrite]
-          zeroshot-dotnet run --config FILE (--request FILE | --prepared FILE)
-                              [--detach | --timeout WAIT] [--save-request FILE] [--save-run FILE]
-                              [--overwrite] [--request-timeout DURATION]
-          zeroshot-dotnet status RUN [--request-timeout DURATION]
-          zeroshot-dotnet wait RUN [--timeout WAIT] [--request-timeout DURATION]
-          zeroshot-dotnet watch RUN [--after CURSOR | --checkpoint FILE] [--recovery MODE] [--request-timeout DURATION]
-          zeroshot-dotnet logs RUN [--execution EXECUTION] [--after CURSOR | --checkpoint FILE] [--recovery MODE]
-                               [--request-timeout DURATION]
-          zeroshot-dotnet attach RUN EXECUTION [--request-timeout DURATION]
-          zeroshot-dotnet force-stop RUN [--wait-timeout WAIT | --request-only] [--request-timeout DURATION]
-          zeroshot-dotnet --version
+        {string.Join('\n', Synopsis())}
 
         Every command accepts --json (versioned zeroshot-dotnet/cli/v1 records) and --help. An option
         value can also be given as --option=VALUE, which is required for a value that begins with --.

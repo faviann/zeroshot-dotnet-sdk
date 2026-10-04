@@ -66,8 +66,8 @@ public static class CliApp
     /// <summary>Local only: parse, fix identity with the SDK and write the exact exported bytes.</summary>
     private static int Prepare(Invocation invocation, CliOutput output)
     {
-        var request = ReadRequest(invocation.Required("--request"));
-        var destination = invocation.Required("--out");
+        var request = ReadRequest(invocation.Value("--request")!);
+        var destination = invocation.Value("--out")!;
         var prepared = request.Prepare();
         CliFiles.Write(destination, prepared.ExportUtf8(), invocation.Flag("--overwrite"), "prepared request");
         output.Prepared(prepared.RunId, destination);
@@ -80,20 +80,17 @@ public static class CliApp
     /// </summary>
     private static async Task<int> SubmitAsync(Invocation invocation, CliOutput output, CancellationToken cancellationToken)
     {
-        invocation.Exclusive("--request", "--prepared");
-        invocation.Exclusive("--detach", "--timeout");
         var timeout = invocation.WaitBudget("--timeout");
         var requestTimeout = invocation.Duration("--request-timeout");
-        var configuration = TargetConfiguration.Load(invocation.Required("--config"));
+        var configuration = TargetConfiguration.Load(invocation.Value("--config")!);
         var overwrite = invocation.Flag("--overwrite");
         PreparedSubmission prepared;
         if (invocation.Value("--request") is { } requestPath) prepared = ReadRequest(requestPath).Prepare();
-        else if (invocation.Value("--prepared") is { } preparedPath)
+        else
         {
             if (invocation.Has("--save-request")) throw CliFailure.Invocation("--save-request applies only to --request.");
-            prepared = ImportPrepared(preparedPath);
+            prepared = ImportPrepared(invocation.Value("--prepared")!);
         }
-        else throw CliFailure.Invocation("'run' requires --request or --prepared.");
         var saveRun = invocation.Value("--save-run");
         // Refused now rather than after the mutation, which would leave an acknowledged run without its file.
         if (saveRun is not null && !overwrite && (File.Exists(saveRun) || Directory.Exists(saveRun)))
@@ -140,11 +137,9 @@ public static class CliApp
                 timeout = invocation.WaitBudget("--timeout");
                 break;
             case "force-stop":
-                invocation.Exclusive("--wait-timeout", "--request-only");
                 timeout = invocation.WaitBudget("--wait-timeout");
                 break;
             case "watch" or "logs":
-                invocation.Exclusive("--after", "--checkpoint");
                 if (invocation.Value("--recovery") is { } mode)
                     recover = TargetConfiguration.Recovery(mode)
                         ?? throw CliFailure.Invocation("--recovery must be 'established-interruptions' or 'none'.");
@@ -155,25 +150,17 @@ public static class CliApp
                 break;
         }
 
-        var runFile = invocation.Value("--run-file");
-        var attach = invocation.Command == "attach";
-        if (invocation.Positionals.Count != (runFile is null ? 1 : 0) + (attach ? 1 : 0))
-            throw CliFailure.Invocation(attach
-                ? "'attach' takes RUN_ID EXECUTION, or EXECUTION with --run-file FILE."
-                : $"'{invocation.Command}' takes one RUN_ID, or --run-file FILE instead.");
-        if (attach) execution = Value(() => new ExecutionRef(invocation.Positionals[^1]), "EXECUTION must be a native execution reference.");
+        if (invocation.Command == "attach")
+            execution = Value(() => new ExecutionRef(invocation.Positionals[^1]), "EXECUTION must be a native execution reference.");
 
+        // The grammar guarantees a configuration, a run file or both.
+        var runFile = invocation.Value("--run-file");
         var reference = runFile is null ? null
             : Value(() => RunReference.Parse(Utf8(runFile, "run")), $"The run file '{runFile}' is not a valid run reference.", CliFailure.Input);
         var configuration = invocation.Value("--config") is { } configPath ? TargetConfiguration.Load(configPath) : null;
         using var client = configuration?.CreateClient(requestTimeout, recover)
-            ?? TargetConfiguration.CreateClient(new ZeroshotClientOptions
-            {
-                Target = reference?.Target ?? throw CliFailure.Invocation("RUN_ID requires --config FILE naming its target."),
-                NativeBinding = reference.NativeBinding,
-                Transport = requestTimeout is { } requested ? new() { RequestTimeout = requested } : new(),
-                Observation = recover is { } value ? new() { Recover = value } : new(),
-            }, requestTimeout is null ? $"The run file '{runFile}'" : $"The run file '{runFile}' with --request-timeout");
+            ?? TargetConfiguration.CreateClient(new() { Target = reference!.Target, NativeBinding = reference.NativeBinding },
+                $"The run file '{runFile}'", requestTimeout, recover);
         var run = reference is not null
             ? Value(() => client.GetRun(reference), $"The run file '{runFile}' names a different target than the configuration.", CliFailure.Input)
             : Value(() => client.GetRun(new RunId(invocation.Positionals[0])), "RUN_ID must be a native run ID.");

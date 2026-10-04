@@ -149,17 +149,11 @@ public sealed class TargetInputTests
     }
 
     [Test]
-    [Arguments("run --config target.json --request request.json --prepared request.json")]
-    [Arguments("run --config target.json --request request.json --detach --timeout 1m")]
     [Arguments("run --config target.json --prepared request.json --save-request saved.json")]
     [Arguments("run --config target.json --request request.json --timeout 1194h")]
     [Arguments("run --request request.json")]
-    [Arguments("force-stop RUN --config target.json --request-only --wait-timeout 1m")]
-    [Arguments("logs RUN --config target.json --after c1 --checkpoint cp.json")]
     [Arguments("watch RUN --config target.json --recovery sometimes")]
-    [Arguments("watch RUN --config target.json --execution worker")]
     [Arguments("attach RUN --config target.json")]
-    [Arguments("status --run-file run.json RUN")]
     public async Task CommandGrammarIsEnforcedBeforeAnyIo(string command)
     {
         var args = command.Replace("RUN", PrepareTests.RunId).Split(' ');

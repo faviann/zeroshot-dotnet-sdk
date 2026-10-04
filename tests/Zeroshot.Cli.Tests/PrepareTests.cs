@@ -172,10 +172,6 @@ public sealed class PrepareTests
 
     [Test]
     [Arguments("prepare --request request.json")]
-    [Arguments("prepare --out prepared.json")]
-    [Arguments("prepare --request request.json --out prepared.json --config target.json")]
-    [Arguments("prepare --request request.json --request other.json --out prepared.json")]
-    [Arguments("prepare extra --request request.json --out prepared.json")]
     [Arguments("submit --request request.json")]
     public async Task InvalidInvocationIsExitTwoWithUsageHint(string command)
     {
