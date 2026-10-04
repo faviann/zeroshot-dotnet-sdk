@@ -2,7 +2,10 @@
   <Import Project="../native.props" />
   <!-- One version and one set of package metadata for the library and the matching locally built CLI. -->
   <PropertyGroup>
-    <Version>0.2.0-preview.1</Version>
+    <!-- The version mirrors the bound native release plus an SDK revision (README "Versioning"). A release of the same
+         native release increments the revision; binding a new native release resets it to 1. Revisions start at 1. -->
+    <ZeroshotSdkRevision>1</ZeroshotSdkRevision>
+    <Version>$(ZeroshotNativeVersion).$(ZeroshotSdkRevision)</Version>
     <Authors>faviann</Authors>
     <Copyright>Copyright (c) 2026 faviann</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
