@@ -107,20 +107,20 @@ tags and on demand. `tools/qualification` does the work, and each step also runs
 
 The compatibility baseline is the latest `v*` release tag that precedes the candidate in
 NuGet version order, which places `0.1.0-preview.1` and `0.2.0-preview.1` below every
-mirrored version. Every public API line and CLI line (grammar, output fields, schemas and
-exit codes) recorded at that tag must remain while the candidate binds the baseline's
-native release. Only a candidate that binds a later native release, or whose baseline is a
-preview (a prerelease version such as `0.2.0-preview.1`), can remove one, and it needs
-migration notes at `docs/migration/<native version>.md`, for example
-`docs/migration/10.11.0.md`. A candidate that binds an earlier native release than its
-baseline is refused. A mirrored baseline binds its first three version parts; the two
-releases before mirroring bind the native releases in the
-[compatibility table](#native-compatibility), so `10.10.0.1` is a revision step from
-`0.2.0-preview.1`. When no release precedes the candidate, the baseline is the accepted
-usage prototype: every public symbol, command, option, exit code and file schema in
-[`prototype-contract.txt`](tools/qualification/prototype-contract.txt) must exist. Its
-output entries are the decision's normative `cli/v1` envelope and record kinds; the
-prototype pages' field examples were refined in implementation, so this first release's
+mirrored version and a revision's previews below that revision. Every public API line and
+CLI line (grammar, output fields, schemas and exit codes) recorded at that tag must remain
+while the candidate binds the baseline's native release. Only a candidate that binds a
+later native release, or whose baseline is a preview (a prerelease version such as
+`0.2.0-preview.1` or `10.10.0.1-preview.1`), can remove one, and it needs migration notes
+at `docs/migration/<native version>.md`, for example `docs/migration/10.11.0.md`. A
+candidate that binds an earlier native release than its baseline is refused. A mirrored
+baseline binds its first three version parts; the two releases before mirroring bind the
+native releases in the [compatibility table](#native-compatibility), so `10.10.0.1` is a
+revision step from `0.2.0-preview.1`. When no release precedes the candidate, the baseline
+is the accepted usage prototype: every public symbol, command, option, exit code and file
+schema in [`prototype-contract.txt`](tools/qualification/prototype-contract.txt) must
+exist. Its output entries are the decision's normative `cli/v1` envelope and record kinds;
+the prototype pages' field examples were refined in implementation, so this first release's
 `contract.txt` fixes the field-level shapes for later releases. The release commit moves
 the `PublicAPI.Unshipped.txt` entries to `PublicAPI.Shipped.txt`.
 
@@ -139,9 +139,10 @@ Only `Zeroshot.Client` is published, to the GitHub Packages feed
 `https://nuget.pkg.github.com/faviann/index.json`. The `Zeroshot.Cli` package is never
 pushed anywhere. To release the next revision of the pinned native release, increment
 `ZeroshotSdkRevision` in `src/Directory.Build.props`; to bind a new native release, change
-the pin in `native.props` and reset the revision to 1. Merge to `main`, then push the tag
-`vX` on that commit, where `X` is the resulting [version](#versioning). The tag run
-qualifies the commit as above, then:
+the pin in `native.props` and reset the revision to 1. To publish a preview of that
+revision, set `ZeroshotSdkPrerelease` to `preview.<n>`; to release the revision, clear it.
+Merge to `main`, then push the tag `vX` on that commit, where `X` is the resulting
+[version](#versioning). The tag run qualifies the commit as above, then:
 
 5. **publish** runs only on a `v*` tag, and only after **qualification** succeeded. It is
    the only job with `packages: write`. Its `release` step refuses unless
@@ -173,17 +174,21 @@ re-runs the failed job. Nothing is pushed again.
 An SDK version mirrors the native Zeroshot release it binds, followed by an SDK revision:
 `<native major>.<native minor>.<native patch>.<revision>`. `10.10.0.1` is the first SDK
 release for native 10.10.0. Revisions start at 1, because NuGet shortens `10.10.0.0` to
-`10.10.0`. Versions carry no prerelease label, but the SDK is still a preview: its API can
-change with any new native release.
+`10.10.0`. The only prerelease label is `-preview.<n>`, from 1: `10.10.0.1-preview.1` is a
+preview of revision `10.10.0.1`. The SDK is still a preview: its API can change with any
+new native release.
 
 A revision never breaks: every later revision for the same native release keeps the whole
-public API and CLI contract of the previous one. Breaking changes arrive only with a new
-native release, and qualification refuses them unless that release has migration notes at
-`docs/migration/<native version>.md`. To take every revision for your native release, use
-a wildcard on the fourth part:
+public API and CLI contract of the previous revision. A preview promises nothing: the next
+preview or the revision itself may break it. Otherwise breaking changes arrive only with a
+new native release. Qualification refuses any breaking change unless that native release
+has migration notes at `docs/migration/<native version>.md`. To take every revision for
+your native release, use a wildcard on the fourth part. NuGet floating versions exclude
+prereleases, so it never selects a preview; pin a preview exactly:
 
 ```xml
 <PackageReference Include="Zeroshot.Client" Version="10.10.0.*" />
+<PackageReference Include="Zeroshot.Client" Version="[10.10.0.1-preview.1]" />
 ```
 
 ## Native compatibility
@@ -198,8 +203,9 @@ per native release:
 | `0.2.0-preview.1` | 10.10.0 | `3ee1192cec359a0b997f464e703a936e8b67d63c` |
 | `10.10.0.*` | 10.10.0 | `3ee1192cec359a0b997f464e703a936e8b67d63c` |
 
-The first two releases predate mirrored versions. `10.10.0.1` binds the same native
-release as `0.2.0-preview.1` and keeps its whole contract.
+The first two releases predate mirrored versions. `10.10.0.1` and its previews bind the
+same native release as `0.2.0-preview.1`; [the 10.10.0 notes](docs/migration/10.10.0.md)
+list what they change.
 
 The `zeroshot-native-<version>` package tag, the package description and
 `zeroshot-dotnet --version` name the same release. Move your native pin and target image
@@ -252,11 +258,12 @@ dotnet nuget add source https://nuget.pkg.github.com/faviann/index.json --name g
   --configfile ~/.nuget/NuGet/NuGet.Config
 ```
 
-Reference the latest revision for your native release, or pin one exact version:
+Reference the latest revision for your native release, or pin one exact version, as a
+preview needs:
 
 ```xml
 <PackageReference Include="Zeroshot.Client" Version="10.10.0.*" />
-<PackageReference Include="Zeroshot.Client" Version="[10.10.0.1]" />
+<PackageReference Include="Zeroshot.Client" Version="[10.10.0.1-preview.1]" />
 ```
 
 The CLI is not published. Build it from the tag that matches the SDK version, as the
