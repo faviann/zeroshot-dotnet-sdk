@@ -8,6 +8,10 @@ formats output. Run `zeroshot-dotnet --help` for the complete grammar.
 The SDK does all waiting, stream recovery and outcome classification. The CLI never
 retries or replays a mutation, and it never sends a stop that you did not request.
 
+Agents and scripts are the intended callers. Pass `--json` to get versioned
+`zeroshot-dotnet/cli/v1` records (see [Output](#output)). Branch on the
+[exit code](#exit-codes) and the error `category`, not on message text.
+
 ## Build and install
 
 The CLI is framework-dependent: running it needs a .NET 10 runtime, and building or
