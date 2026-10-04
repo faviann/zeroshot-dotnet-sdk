@@ -1,5 +1,3 @@
-using System.Text.Json.Nodes;
-
 namespace Qualification.Tests;
 
 public sealed class CompatibilityTests
@@ -14,9 +12,9 @@ public sealed class CompatibilityTests
 
     private static readonly List<string> BaselineEntries = ["api " + Kept, "api " + Dropped];
 
-    private static JsonObject Published(string version) => new() { ["kind"] = "published", ["version"] = version, ["tag"] = "v" + version };
+    private static CompatibilityBaseline Published(string version) => new("published", version, Tag: "v" + version);
 
-    private static Task<JsonObject> Check(string version, string native, string baseline, List<string> candidate)
+    private static Task<Compatibility> Check(string version, string native, string baseline, List<string> candidate)
         => Task.FromResult(Candidate.Check(version, native, Published(baseline), BaselineEntries, candidate));
 
     [Test]
@@ -69,8 +67,8 @@ public sealed class CompatibilityTests
     public async Task TheFirstMirroredReleaseIsASameNativeStepFromTheLastLegacyRelease()
     {
         var result = await Check("10.10.0.1", "10.10.0", "0.2.0-preview.1", ["api " + Kept, "api " + Dropped]);
-        await Assert.That((string?)result["baselineNative"]).IsEqualTo("10.10.0");
-        await Assert.That(result["missing"]!.AsArray().Count).IsEqualTo(0);
+        await Assert.That(result.BaselineNative).IsEqualTo("10.10.0");
+        await Assert.That(result.Missing).IsEmpty();
     }
 
     [Test]

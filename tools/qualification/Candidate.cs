@@ -1,6 +1,5 @@
 using System.IO.Compression;
 using System.Reflection;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
@@ -79,36 +78,14 @@ internal static class Candidate
         Compare("tools/qualification/contract.txt", Entries(File.ReadAllLines(ContractFile)), contract);
 
         var api = DeclaredApi(File.ReadAllLines(ShippedFile), File.ReadAllLines(UnshippedFile));
-        var compatibility = Compatibility(version, api.Concat(contract.Where(line => line.StartsWith("cli ", StringComparison.Ordinal))).ToList());
+        var compatibility = AgainstBaseline(version, api.Concat(contract.Where(line => line.StartsWith("cli ", StringComparison.Ordinal))).ToList());
 
-        var manifest = new JsonObject
-        {
-            ["schema"] = "zeroshot-dotnet/qualification-candidate/v1",
-            ["version"] = version,
-            ["sourceCommit"] = commit,
-            ["worktreeClean"] = clean,
-            ["tags"] = new JsonArray([.. tags.Select(tag => (JsonNode?)tag)]),
-            ["releaseTag"] = tags.FirstOrDefault(tag => tag == "v" + version),
-            ["ref"] = Environment.GetEnvironmentVariable("GITHUB_REF"),
-            ["workflowRun"] = Environment.GetEnvironmentVariable("GITHUB_RUN_ID") is { } run
-                ? $"{Environment.GetEnvironmentVariable("GITHUB_SERVER_URL")}/{Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")}/actions/runs/{run}" : null,
-            ["dotnetSdk"] = Tools.Checked(Tools.DotnetHost, ["--version"]).Trim(),
-            ["informationalVersion"] = expectedVersion,
-            ["packages"] = new JsonObject
-            {
-                ["client"] = new JsonObject { ["id"] = "Zeroshot.Client", ["file"] = Path.GetFileName(clientPath), ["sha256"] = Tools.Sha256(clientPath), ["librarySha256"] = library },
-                ["cli"] = new JsonObject
-                {
-                    ["id"] = "Zeroshot.Cli", ["file"] = Path.GetFileName(cliPath), ["sha256"] = Tools.Sha256(cliPath),
-                    ["commandSha256"] = Tools.Sha256(cli.GetEntry("tools/net10.0/any/zeroshot-dotnet.dll")!), ["bundledLibrarySha256"] = bundled,
-                },
-            },
-            ["compatibility"] = compatibility,
-            // Every declared output kind and path; each platform's CLI suites must emit them all and nothing else.
-            ["cliOutput"] = new JsonArray([.. contract.Where(line => line.StartsWith("cli output ", StringComparison.Ordinal)).Select(line => (JsonNode?)line)]),
-        };
-        Tools.WriteJson(Path.Combine(output, "candidate.json"), manifest);
-        Console.WriteLine(manifest.ToJsonString(Tools.Indented));
+        JsonFile.Write(Path.Combine(output, "candidate.json"), new CandidateManifest(
+            version, commit, clean, tags, tags.FirstOrDefault(tag => tag == "v" + version), Environment.GetEnvironmentVariable("GITHUB_REF"), Tools.WorkflowRun,
+            Tools.Checked(Tools.DotnetHost, ["--version"]).Trim(), expectedVersion,
+            new(new("Zeroshot.Client", Path.GetFileName(clientPath), Tools.Sha256(clientPath), library),
+                new("Zeroshot.Cli", Path.GetFileName(cliPath), Tools.Sha256(cliPath), Tools.Sha256(cli.GetEntry("tools/net10.0/any/zeroshot-dotnet.dll")!), bundled)),
+            compatibility, [.. contract.Where(line => line.StartsWith("cli output ", StringComparison.Ordinal))]));
         return 0;
     }
 
@@ -223,15 +200,15 @@ internal static class Candidate
     /// the baseline the accepted usage prototype. Entries may disappear only with a later native release, and only with
     /// migration notes for it.
     /// </summary>
-    private static JsonObject Compatibility(string version, List<string> candidate)
+    private static Compatibility AgainstBaseline(string version, List<string> candidate)
     {
         var releases = Tools.Git("tag", "--list", "v*").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         // A shallow or tagless clone would silently fall back to the prototype baseline.
         if (releases.Length == 0) Console.WriteLine("::warning::No v* tags are present; fetch tags if any release has been published.");
         var prior = Baseline(releases, version);
         var baseline = prior is null
-            ? new JsonObject { ["kind"] = "accepted-prototype", ["version"] = PrototypeVersion, ["contract"] = PrototypeFile, ["decision"] = PrototypeDecision }
-            : new JsonObject { ["kind"] = "published", ["version"] = prior[1..], ["tag"] = prior };
+            ? new CompatibilityBaseline("accepted-prototype", PrototypeVersion, Contract: PrototypeFile, Decision: PrototypeDecision)
+            : new CompatibilityBaseline("published", prior[1..], Tag: prior);
         List<string> entries = prior is null
             ? Entries(File.ReadAllLines(PrototypeFile))
             : [.. DeclaredApi(Tools.Git("show", $"{prior}:{ShippedFile}").Split('\n'), Tools.Git("show", $"{prior}:{UnshippedFile}").Split('\n')),
@@ -254,10 +231,10 @@ internal static class Candidate
     /// Refuses a candidate that is not a mirrored version of <paramref name="native"/>, binds an earlier native release
     /// than its baseline, starts a new native release above revision 1, or lacks a baseline entry. Only a later native release may drop one, with migration notes.
     /// </summary>
-    internal static JsonObject Check(string version, string native, JsonObject baseline, List<string> entries, List<string> candidate)
+    internal static Compatibility Check(string version, string native, CompatibilityBaseline baseline, List<string> entries, List<string> candidate)
     {
         Mirrored(version, native);
-        var baselineVersion = (string)baseline["version"]!;
+        var baselineVersion = baseline.Version;
         var baselineNative = NativeOf(baselineVersion);
         var order = PackageVersion.Parse(native).CompareTo(PackageVersion.Parse(baselineNative));
         if (order < 0) throw new QualificationException($"Version {version} binds native {native}, which precedes native {baselineNative} of its baseline {baselineVersion}.");
@@ -268,17 +245,10 @@ internal static class Candidate
         if (missing.Count > 0)
         {
             foreach (var entry in missing) Console.Error.WriteLine($"- {entry}");
-            if (order == 0) throw new QualificationException($"{missing.Count} {baseline["kind"]} baseline entries (above) are missing; native {native} revisions must keep them.");
+            if (order == 0) throw new QualificationException($"{missing.Count} {baseline.Kind} baseline entries (above) are missing; native {native} revisions must keep them.");
             if (!File.Exists(notes)) throw new QualificationException($"Breaking changes (above) need migration notes at {notes}.");
         }
-        return new JsonObject
-        {
-            ["baseline"] = baseline,
-            ["baselineNative"] = baselineNative,
-            ["entries"] = entries.Count,
-            ["missing"] = new JsonArray([.. missing.Select(entry => (JsonNode?)entry)]),
-            ["migrationNotes"] = missing.Count > 0 ? notes : null,
-        };
+        return new(baseline, baselineNative, entries.Count, missing, missing.Count > 0 ? notes : null);
     }
 
     /// <summary>

@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 /// <summary>
@@ -14,64 +13,52 @@ internal static class Gate
         var failures = new List<string>();
         var candidate = CandidateFiles.Load(Path.Combine(artifacts, "candidate"));
         var identity = candidate.Identity();
-        if (candidate.Manifest["worktreeClean"]?.GetValue<bool>() != true) failures.Add("The candidate was packed from a modified worktree.");
+        if (!candidate.Manifest.WorktreeClean) failures.Add("The candidate was packed from a modified worktree.");
 
-        var legs = Directory.GetFiles(artifacts, "evidence.json", SearchOption.AllDirectories)
-            .Select(file => JsonNode.Parse(File.ReadAllText(file))!.AsObject()).ToList();
-        foreach (var leg in legs.Where(leg => !Required.Platforms.Any(platform => platform.Runner == (string?)leg["runner"])))
-            failures.Add($"Evidence from {leg["runner"]}, which is not a required platform.");
-        var platforms = new JsonArray();
+        var legs = new List<LegEvidence>();
+        foreach (var file in Directory.GetFiles(artifacts, "evidence.json", SearchOption.AllDirectories))
+            try { legs.Add(JsonFile.Read<LegEvidence>(file)); }
+            catch (QualificationException malformed) { failures.Add(malformed.Message); }
+        foreach (var leg in legs.Where(leg => !Required.Platforms.Any(platform => platform.Runner == leg.Runner)))
+            failures.Add($"Evidence from {leg.Runner}, which is not a required platform.");
+        var platforms = new List<PlatformSummary>();
         foreach (var (runner, os, architecture) in Required.Platforms)
         {
-            var matching = legs.Where(leg => (string?)leg["runner"] == runner).ToList();
+            var matching = legs.Where(leg => leg.Runner == runner).ToList();
             if (matching.Count != 1) { failures.Add($"{runner}: {matching.Count} evidence files, expected exactly one."); continue; }
             var leg = matching[0];
-            var platform = leg["platform"]!.AsObject();
+            var platform = leg.Platform;
             void Require(bool condition, string failure) { if (!condition) failures.Add($"{runner}: {failure}"); }
-            Require(JsonNode.DeepEquals(leg["candidate"], identity), "tested other package bytes than the candidate.");
-            Require((string?)platform["os"] == os, $"ran on {platform["os"]}, not {os}.");
-            Require((string?)platform["processArchitecture"] == architecture.ToString() && (string?)platform["osArchitecture"] == architecture.ToString(),
-                $"ran a {platform["processArchitecture"]} process on {platform["osArchitecture"]}, not native {architecture}.");
-            Require(((string?)platform["runtimeVersion"])?.StartsWith("10.", StringComparison.Ordinal) == true, $"ran .NET {platform["runtimeVersion"]}, not .NET 10.");
-            var checks = leg["checks"]!.AsArray().Select(check => check!.AsObject()).ToList();
+            Require(leg.Candidate == identity, "tested other package bytes than the candidate.");
+            Require(platform.Os == os, $"ran on {platform.Os}, not {os}.");
+            Require(platform.ProcessArchitecture == architecture.ToString() && platform.OsArchitecture == architecture.ToString(),
+                $"ran a {platform.ProcessArchitecture} process on {platform.OsArchitecture}, not native {architecture}.");
+            Require(platform.RuntimeVersion.StartsWith("10.", StringComparison.Ordinal), $"ran .NET {platform.RuntimeVersion}, not .NET 10.");
             foreach (var name in PlatformLeg.Checks)
-                Require(checks.Count(check => (string?)check["name"] == name && check["passed"]?.GetValue<bool>() == true) == 1, $"check {name} did not pass.");
-            foreach (var check in checks)
-                foreach (var skipped in check["detail"]?["skippedTests"]?.AsArray() ?? [])
-                    Require(Required.MaySkip((string)check["name"]!, os, (string)skipped!), $"{check["name"]} skipped {skipped}, which must run on {os}.");
-            Require(leg["passed"]?.GetValue<bool>() == true, "the leg did not pass.");
-            platforms.Add(new JsonObject
+                Require(leg.Checks.Count(check => check.Name == name && check.Passed) == 1, $"check {name} did not pass.");
+            foreach (var check in leg.Checks.Where(check => check.Detail is not null && PlatformLeg.Suites.Contains(check.Name)))
             {
-                ["runner"] = runner,
-                ["os"] = platform["os"]?.DeepClone(),
-                ["osDetail"] = platform["osDetail"]?.DeepClone(),
-                ["processArchitecture"] = platform["processArchitecture"]?.DeepClone(),
-                ["osArchitecture"] = platform["osArchitecture"]?.DeepClone(),
-                ["runtime"] = platform["runtimeVersion"]?.DeepClone(),
-                ["sdk"] = platform["sdkVersion"]?.DeepClone(),
-                ["checks"] = new JsonArray([.. checks.Select(check => (JsonNode?)new JsonObject { ["name"] = check["name"]?.DeepClone(), ["passed"] = check["passed"]?.DeepClone(), ["detail"] = check["detail"]?.DeepClone() })]),
-            });
+                try
+                {
+                    foreach (var skipped in JsonFile.Parse<SuiteSummary>(check.Detail!, $"{runner} {check.Name} detail").SkippedTests)
+                        Require(Required.MaySkip(check.Name, os, skipped), $"{check.Name} skipped {skipped}, which must run on {os}.");
+                }
+                catch (QualificationException malformed) { Require(false, malformed.Message); }
+            }
+            Require(leg.Passed, "the leg did not pass.");
+            platforms.Add(new(runner, platform.Os, platform.OsDetail, platform.ProcessArchitecture, platform.OsArchitecture, platform.RuntimeVersion, platform.SdkVersion,
+                [.. leg.Checks.Select(check => new CheckSummary(check.Name, check.Passed, check.Detail))]));
         }
 
         var native = Native(Path.Combine(artifacts, "native-witness"), candidate, failures);
         var qualified = failures.Count == 0;
-        var manifest = new JsonObject
-        {
-            ["schema"] = "zeroshot-dotnet/qualification/v1",
-            ["qualified"] = qualified,
-            ["candidate"] = candidate.Manifest.DeepClone(),
-            ["platforms"] = platforms,
-            ["nativeWitness"] = native,
-            ["failures"] = new JsonArray([.. failures.Select(failure => (JsonNode?)failure)]),
-        };
-        Tools.WriteJson(output, manifest);
-        Console.WriteLine(manifest.ToJsonString(Tools.Indented));
+        JsonFile.Write(output, new QualificationManifest(qualified, candidate.Manifest, platforms, native, failures));
         foreach (var failure in failures) Console.Error.WriteLine($"Refused: {failure}");
         return qualified ? 0 : 1;
     }
 
     /// <summary>The witness's own provenance: pinned native build, test assets and the candidate packages it restored.</summary>
-    private static JsonObject? Native(string directory, CandidateFiles candidate, List<string> failures)
+    private static NativeWitness? Native(string directory, CandidateFiles candidate, List<string> failures)
     {
         var provenancePath = Path.Combine(directory, "provenance.txt");
         var resultPath = Path.Combine(directory, "result.txt");
@@ -90,15 +77,7 @@ internal static class Gate
         Require(lines.Contains($"zeroshot-dotnet {candidate.Version}+{candidate.Commit}"), "did not run the candidate CLI.");
         var executable = hashes.Where(hash => hash.File == "bin/zeroshot").Select(hash => hash.Sha256).FirstOrDefault();
         Require(executable is not null, "recorded no native executable identity.");
-        return new JsonObject
-        {
-            ["nativeVersion"] = Value("nativeVersion"),
-            ["sourceRevision"] = Value("sourceRevision"),
-            ["release"] = Value("release"),
-            ["archiveSha256"] = Value("archiveSha256"),
-            ["executableSha256"] = executable,
-            ["identities"] = new JsonArray([.. hashes.Select(hash => (JsonNode?)new JsonObject { ["file"] = hash.File, ["sha256"] = hash.Sha256 })]),
-            ["result"] = File.ReadAllText(resultPath).Trim(),
-        };
+        return new(Value("nativeVersion"), Value("sourceRevision"), Value("release"), Value("archiveSha256"), executable,
+            [.. hashes.Select(hash => new FileHash(hash.File, hash.Sha256))], File.ReadAllText(resultPath).Trim());
     }
 }

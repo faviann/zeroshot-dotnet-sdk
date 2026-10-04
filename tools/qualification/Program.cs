@@ -4,11 +4,6 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Encodings.Web;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
-using System.Xml.Linq;
 
 // Qualifies one release candidate (README "Release qualification"). Run from the repository root:
 //   pack --out DIR                                    build and pack the library and CLI once; check packaging and compatibility
@@ -111,13 +106,9 @@ internal static class Tools
 
     public static string DotnetRoot => Path.GetFullPath(Path.Combine(RuntimeEnvironment.GetRuntimeDirectory(), "..", "..", ".."));
 
-    public static readonly JsonSerializerOptions Indented = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
-
-    public static void WriteJson(string path, JsonNode node)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        File.WriteAllText(path, node.ToJsonString(Indented) + "\n");
-    }
+    /// <summary>The GitHub Actions run this process belongs to, or null outside one.</summary>
+    public static string? WorkflowRun => Environment.GetEnvironmentVariable("GITHUB_RUN_ID") is { } run
+        ? $"{Environment.GetEnvironmentVariable("GITHUB_SERVER_URL")}/{Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")}/actions/runs/{run}" : null;
 
     /// <summary>Runs a process, echoing and returning its combined output. <paramref name="path"/> replaces PATH when given.</summary>
     public static (int ExitCode, string Output) Run(string file, IEnumerable<string> arguments, string? workingDirectory = null,
@@ -173,14 +164,15 @@ internal static class Tools
 }
 
 /// <summary>The packed candidate: its manifest and the exact package bytes every later job must receive.</summary>
-internal sealed record CandidateFiles(string Directory, JsonObject Manifest)
+internal sealed record CandidateFiles(string Directory, CandidateManifest Manifest)
 {
-    public string Version => (string)Manifest["version"]!;
-    public string Commit => (string)Manifest["sourceCommit"]!;
-    public string ClientFile => Path.Combine(Directory, (string)Manifest["packages"]!["client"]!["file"]!);
-    public string CliFile => Path.Combine(Directory, (string)Manifest["packages"]!["cli"]!["file"]!);
-    public string ClientSha256 => (string)Manifest["packages"]!["client"]!["sha256"]!;
-    public string CliSha256 => (string)Manifest["packages"]!["cli"]!["sha256"]!;
+    public string ManifestPath => Path.Combine(Directory, "candidate.json");
+    public string Version => Manifest.Version;
+    public string Commit => Manifest.SourceCommit;
+    public string ClientFile => Path.Combine(Directory, Manifest.Packages.Client.File);
+    public string CliFile => Path.Combine(Directory, Manifest.Packages.Cli.File);
+    public string ClientSha256 => Manifest.Packages.Client.Sha256;
+    public string CliSha256 => Manifest.Packages.Cli.Sha256;
 
     /// <summary>
     /// Loads and verifies a downloaded candidate: the files must hash to the manifest and, when the pack job's outputs
@@ -190,7 +182,7 @@ internal sealed record CandidateFiles(string Directory, JsonObject Manifest)
     {
         var manifestPath = Path.Combine(directory, "candidate.json");
         if (!File.Exists(manifestPath)) throw new QualificationException($"No candidate manifest in {directory}.");
-        var candidate = new CandidateFiles(directory, JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject());
+        var candidate = new CandidateFiles(directory, JsonFile.Read<CandidateManifest>(manifestPath));
         foreach (var (file, sha256, expected) in new[]
         {
             (candidate.ClientFile, candidate.ClientSha256, Environment.GetEnvironmentVariable("ZEROSHOT_CANDIDATE_CLIENT_SHA256")),
@@ -204,11 +196,5 @@ internal sealed record CandidateFiles(string Directory, JsonObject Manifest)
         return candidate;
     }
 
-    public JsonObject Identity() => new()
-    {
-        ["version"] = Version,
-        ["sourceCommit"] = Commit,
-        ["client"] = new JsonObject { ["file"] = Path.GetFileName(ClientFile), ["sha256"] = ClientSha256 },
-        ["cli"] = new JsonObject { ["file"] = Path.GetFileName(CliFile), ["sha256"] = CliSha256 },
-    };
+    public CandidateIdentity Identity() => new(Version, Commit, new(Path.GetFileName(ClientFile), ClientSha256), new(Path.GetFileName(CliFile), CliSha256));
 }

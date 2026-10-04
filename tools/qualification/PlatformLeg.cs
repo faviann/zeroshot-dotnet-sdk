@@ -1,7 +1,6 @@
 using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
@@ -24,6 +23,9 @@ internal static class PlatformLeg
         "cli-repository", "cli-global-tool", "cli-local-manifest", "cli-explicit-path", "no-python-or-native-used",
     ];
 
+    /// <summary>The checks whose detail is a <see cref="SuiteSummary"/>, the only ones that may skip tests.</summary>
+    public static readonly string[] Suites = ["sdk-tests", "cli-repository", "cli-global-tool", "cli-local-manifest", "cli-explicit-path"];
+
     public static int Run(string candidateDirectory, string runner, string output)
     {
         if (!File.Exists("Zeroshot.sln")) throw new QualificationException("Run from the repository root.");
@@ -36,42 +38,25 @@ internal static class PlatformLeg
         var logs = Directory.CreateDirectory(Path.Combine(output, "logs")).FullName;
         var work = RealPath(Directory.CreateTempSubdirectory("zeroshot-qualification-").FullName);
         Console.WriteLine($"Work directory: {work}");
-        var checks = new JsonArray();
+        var checks = new List<CheckResult>();
         var expected = Required.Platforms.SingleOrDefault(platform => platform.Runner == runner);
         var platform = Platform();
-        var evidence = new JsonObject
-        {
-            ["schema"] = "zeroshot-dotnet/qualification-platform/v1",
-            ["runner"] = runner,
-            ["expected"] = expected.Runner is null ? null : new JsonObject { ["os"] = expected.Os, ["architecture"] = expected.Architecture.ToString() },
-            ["candidate"] = candidate.Identity(),
-            ["platform"] = platform,
-            ["checks"] = checks,
-        };
 
-        void Check(string name, Func<JsonObject?> check)
+        void Check(string name, Func<object?> check)
         {
             Console.WriteLine($"::group::{name}");
-            var record = new JsonObject { ["name"] = name };
-            try
-            {
-                if (check() is { } detail) record["detail"] = detail;
-                record["passed"] = true;
-            }
-            catch (Exception failure)
-            {
-                record["passed"] = false;
-                record["failure"] = failure.Message;
-            }
+            CheckResult record;
+            try { record = new() { Name = name, Detail = JsonFile.Node(check()), Passed = true }; }
+            catch (Exception failure) { record = new() { Name = name, Passed = false, Failure = failure.Message }; }
             Console.WriteLine("::endgroup::");
-            Console.WriteLine($"{((bool)record["passed"]! ? "PASS" : "FAIL")} {name}{(record["failure"] is { } reason ? ": " + reason : "")}");
+            Console.WriteLine($"{(record.Passed ? "PASS" : "FAIL")} {name}{(record.Failure is { } reason ? ": " + reason : "")}");
             checks.Add(record);
         }
 
         Check("platform", () =>
         {
             if (expected.Runner is null) throw new QualificationException($"{runner} is not a required qualification runner.");
-            if ((string)platform["os"]! != expected.Os) throw new QualificationException($"Expected {expected.Os}, found {platform["os"]}.");
+            if (platform.Os != expected.Os) throw new QualificationException($"Expected {expected.Os}, found {platform.Os}.");
             if (RuntimeInformation.ProcessArchitecture != expected.Architecture || RuntimeInformation.OSArchitecture != expected.Architecture)
                 throw new QualificationException($"Expected a native {expected.Architecture} process and OS, found {RuntimeInformation.ProcessArchitecture} on {RuntimeInformation.OSArchitecture}.");
             if (Environment.Version.Major != 10) throw new QualificationException($"Expected .NET 10, found {Environment.Version}.");
@@ -127,10 +112,9 @@ internal static class PlatformLeg
             if (!File.Exists(cached) || Tools.Sha256(cached) != candidate.ClientSha256)
                 throw new QualificationException("The isolated cache does not hold the candidate library package bytes.");
             var libraries = Directory.GetFiles(fresh, "Zeroshot.Client.dll", SearchOption.AllDirectories);
-            var librarySha256 = (string)candidate.Manifest["packages"]!["client"]!["librarySha256"]!;
-            if (libraries.Length == 0 || libraries.Any(file => Tools.Sha256(file) != librarySha256))
+            if (libraries.Length == 0 || libraries.Any(file => Tools.Sha256(file) != candidate.Manifest.Packages.Client.LibrarySha256))
                 throw new QualificationException("A fresh consumer's output holds a Zeroshot.Client.dll that is not the candidate's.");
-            return new JsonObject { ["cachedPackageSha256"] = Tools.Sha256(cached), ["consumerLibraries"] = libraries.Length };
+            return new ConsumerRestore(Tools.Sha256(cached), libraries.Length);
         });
 
         Check("sdk-tests", () => Suite("sdk-tests", Path.Combine(fresh, "tests", "Zeroshot.Sdk.Tests"), bare, logs, output));
@@ -144,7 +128,7 @@ internal static class PlatformLeg
             });
 
         // The CLI: built from this checkout, then the candidate tool package installed three ways from the local feed.
-        var commandSha256 = (string)candidate.Manifest["packages"]!["cli"]!["commandSha256"]!;
+        var commandSha256 = candidate.Manifest.Packages.Cli.CommandSha256;
         var exe = OperatingSystem.IsWindows() ? ".exe" : "";
         Check("cli-repository", () =>
         {
@@ -189,39 +173,22 @@ internal static class PlatformLeg
         {
             var used = Directory.GetFiles(markers).Select(Path.GetFileName).ToArray();
             if (used.Length > 0) throw new QualificationException($"Invoked: {string.Join(", ", used)}.");
-            return new JsonObject
-            {
-                ["path"] = new JsonArray(poison, dotnetRoot),
-                ["poisoned"] = new JsonArray([.. Absent.Select(name => (JsonNode?)name)]),
-                ["foundBeyondPoison"] = Unreachable([dotnetRoot]),
-                ["invoked"] = new JsonArray(),
-            };
+            return new Isolation([poison, dotnetRoot], Absent, Unreachable([dotnetRoot]), []);
         });
 
-        var passed = checks.All(check => (bool)check!["passed"]!);
-        evidence["passed"] = passed;
-        Tools.WriteJson(Path.Combine(output, "evidence.json"), evidence);
-        Console.WriteLine(evidence.ToJsonString(Tools.Indented));
+        var passed = checks.All(check => check.Passed);
+        JsonFile.Write(Path.Combine(output, "evidence.json"), new LegEvidence(
+            runner, expected.Runner is null ? null : new(expected.Os, expected.Architecture.ToString()), candidate.Identity(), platform, checks, passed));
         return passed ? 0 : 1;
     }
 
     /// <summary>What this process observes of the machine: OS, architectures and .NET servicing versions.</summary>
-    private static JsonObject Platform()
+    private static ObservedPlatform Platform()
     {
         var (os, detail) = OperatingSystemName();
-        return new JsonObject
-        {
-            ["os"] = os,
-            ["osDetail"] = detail,
-            ["osDescription"] = RuntimeInformation.OSDescription,
-            ["processArchitecture"] = RuntimeInformation.ProcessArchitecture.ToString(),
-            ["osArchitecture"] = RuntimeInformation.OSArchitecture.ToString(),
-            ["runtimeIdentifier"] = RuntimeInformation.RuntimeIdentifier,
-            ["runtime"] = RuntimeInformation.FrameworkDescription,
-            ["runtimeVersion"] = Environment.Version.ToString(),
-            ["sdkVersion"] = Tools.Checked(Tools.DotnetHost, ["--version"]).Trim(),
-            ["dotnetRoot"] = Tools.DotnetRoot,
-        };
+        return new(os, detail, RuntimeInformation.OSDescription, RuntimeInformation.ProcessArchitecture.ToString(), RuntimeInformation.OSArchitecture.ToString(),
+            RuntimeInformation.RuntimeIdentifier, RuntimeInformation.FrameworkDescription, Environment.Version.ToString(),
+            Tools.Checked(Tools.DotnetHost, ["--version"]).Trim(), Tools.DotnetRoot);
     }
 
     private static (string Os, string Detail) OperatingSystemName()
@@ -279,17 +246,17 @@ internal static class PlatformLeg
     }
 
     /// <summary>Python or native zeroshot executables that a process with this PATH could find.</summary>
-    private static JsonArray Unreachable(IEnumerable<string> path)
+    private static List<string> Unreachable(IEnumerable<string> path)
     {
         var extensions = OperatingSystem.IsWindows()
             ? [.. (Environment.GetEnvironmentVariable("PATHEXT") ?? ".EXE;.CMD;.BAT").Split(';', StringSplitOptions.RemoveEmptyEntries), ""]
             : new[] { "" };
-        var found = new JsonArray();
+        var found = new List<string>();
         foreach (var directory in path)
             foreach (var name in Absent)
                 foreach (var extension in extensions)
                     if (File.Exists(Path.Combine(directory, name + extension))) found.Add(Path.Combine(directory, name + extension));
-        if (found.Count > 0) throw new QualificationException($"Reachable: {found.ToJsonString()}");
+        if (found.Count > 0) throw new QualificationException($"Reachable: {JsonFile.Compact(found)}");
         return found;
     }
 
@@ -321,27 +288,22 @@ internal static class PlatformLeg
     }
 
     /// <summary>Runs a built test application directly (no MSBuild) and records its summary.</summary>
-    private static JsonObject Suite(string name, string project, IReadOnlyDictionary<string, string?> environment, string logs, string output)
+    private static SuiteSummary Suite(string name, string project, IReadOnlyDictionary<string, string?> environment, string logs, string output)
     {
         var bin = Path.Combine(project, "bin", "Release", "net10.0");
         var assembly = Path.Combine(bin, Path.GetFileName(project) + ".dll");
         var (exitCode, text) = Tools.Run(Tools.DotnetHost, [assembly, "--no-ansi", "--progress", "off", "--results-directory", Path.Combine(output, "results", name)],
             workingDirectory: bin, environment: environment, log: Path.Combine(logs, name + ".log"));
         int Count(string label) => Regex.Match(text, $@"^\s*{label}: (\d+)", RegexOptions.Multiline) is { Success: true } match ? int.Parse(match.Groups[1].Value) : -1;
-        // Named so the gate can hold skips to the platform-specific allowlist.
-        var skipped = Regex.Matches(text, @"^skipped (.+) \([^()]*\)\r?$", RegexOptions.Multiline).Select(match => (JsonNode?)match.Groups[1].Value).ToArray();
-        var summary = new JsonObject
-        {
-            ["total"] = Count("total"), ["failed"] = Count("failed"), ["succeeded"] = Count("succeeded"), ["skipped"] = Count("skipped"),
-            ["skippedTests"] = new JsonArray(skipped), ["exitCode"] = exitCode,
-        };
-        if (exitCode != 0 || Count("failed") != 0 || Count("total") <= 0 || skipped.Length != Count("skipped"))
-            throw new QualificationException($"{name} did not pass: {summary.ToJsonString()}");
+        var skipped = Regex.Matches(text, @"^skipped (.+) \([^()]*\)\r?$", RegexOptions.Multiline).Select(match => match.Groups[1].Value).ToArray();
+        var summary = new SuiteSummary(Count("total"), Count("failed"), Count("succeeded"), Count("skipped"), skipped, exitCode);
+        if (exitCode != 0 || summary.Failed != 0 || summary.Total <= 0 || skipped.Length != summary.Skipped)
+            throw new QualificationException($"{name} did not pass: {JsonFile.Compact(summary)}");
         return summary;
     }
 
     /// <summary>The CLI test suite against one form of zeroshot-dotnet, after its --version names the candidate.</summary>
-    private static JsonObject CliSuite(string name, string[] command, IReadOnlyDictionary<string, string?> environment, string? workspaces,
+    private static SuiteSummary CliSuite(string name, string[] command, IReadOnlyDictionary<string, string?> environment, string? workspaces,
         string workingDirectory, string fresh, string logs, string output, CandidateFiles candidate)
     {
         // A bare command name is found through the PATH it will run with, as the test suite's own launches find it.
@@ -358,10 +320,9 @@ internal static class PlatformLeg
         };
         var summary = Suite(name, Path.Combine(fresh, "tests", "Zeroshot.Cli.Tests"), suite, logs, output);
         var (unobserved, undeclared) = OutputCoverage(candidate, File.Exists(observedFile) ? File.ReadAllLines(observedFile) : []);
-        summary["unobservedOutput"] = new JsonArray([.. unobserved.Select(path => (JsonNode?)path)]);
-        summary["undeclaredOutput"] = new JsonArray([.. undeclared.Select(path => (JsonNode?)path)]);
+        summary = summary with { UnobservedOutput = unobserved, UndeclaredOutput = undeclared };
         if (unobserved.Count > 0 || undeclared.Count > 0)
-            throw new QualificationException($"{name} output differs from the declared contract: {summary.ToJsonString()}");
+            throw new QualificationException($"{name} output differs from the declared contract: {JsonFile.Compact(summary)}");
         return summary;
     }
 
@@ -373,7 +334,7 @@ internal static class PlatformLeg
     /// </summary>
     private static (List<string> Unobserved, List<string> Undeclared) OutputCoverage(CandidateFiles candidate, string[] observed)
     {
-        var declared = candidate.Manifest["cliOutput"]!.AsArray().Select(line => ((string)line!)["cli output ".Length..]).ToHashSet();
+        var declared = candidate.Manifest.CliOutput.Select(line => line["cli output ".Length..]).ToHashSet();
         var seen = observed.ToHashSet();
         foreach (var line in observed.Where(line => line.Contains(' ')))
             seen.Add("* " + line.Split(' ', 2)[1]);
