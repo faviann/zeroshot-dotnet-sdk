@@ -3,10 +3,20 @@ using Zeroshot.Native;
 namespace Zeroshot;
 
 /// <summary>
+/// What every unacknowledged ordinary submission carries, cancelled (<see cref="SubmissionCanceledException"/>) or not
+/// (<see cref="SubmissionException"/>).
+/// </summary>
+public interface ISubmissionFailure
+{
+    /// <summary>The unacknowledged attempt: the prepared request, its outcome and safe native evidence.</summary>
+    TargetSubmissionAttempt Attempt { get; }
+}
+
+/// <summary>
 /// Ordinary submission ended without an acknowledgement. <see cref="Attempt"/> holds the prepared request, its outcome
 /// (rejected, not sent or unknown) and safe native evidence; an unknown outcome may still have created a run.
 /// </summary>
-public sealed class SubmissionException : Exception
+public sealed class SubmissionException : Exception, ISubmissionFailure
 {
     public TargetSubmissionAttempt Attempt { get; }
     internal SubmissionException(TargetSubmissionAttempt attempt)
@@ -18,7 +28,7 @@ public sealed class SubmissionException : Exception
 /// not sent or its effect is unknown, and holds the prepared request for an explicit replay. Its token is the one that
 /// cancelled the attempt: the caller's, or the native client's lifetime when that client was disposed.
 /// </summary>
-public sealed class SubmissionCanceledException : OperationCanceledException
+public sealed class SubmissionCanceledException : OperationCanceledException, ISubmissionFailure
 {
     public TargetSubmissionAttempt Attempt { get; }
     internal SubmissionCanceledException(TargetSubmissionAttempt attempt, CancellationToken cancellationToken)

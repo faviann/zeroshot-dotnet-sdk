@@ -40,4 +40,13 @@ public sealed class FailureKindTests
 
     [Test]
     public void ObservationKindsTranslate() => SameName<ObservationFailureKind, NativeSubscriptionFailureKind>(NativeSubscriptionException.KindOf);
+
+    // Each cancelled twin derives from OperationCanceledException, so the shared facts are reachable only through these.
+    [Test]
+    public void FailureTwinsShareTheirContract()
+    {
+        Check(typeof(IRunWaitFailure).IsAssignableFrom(typeof(RunWaitException)) && typeof(IRunWaitFailure).IsAssignableFrom(typeof(RunWaitCanceledException)));
+        Check(typeof(IForceStopFailure).IsAssignableFrom(typeof(ForceStopException)) && typeof(IForceStopFailure).IsAssignableFrom(typeof(ForceStopCanceledException)));
+        Check(typeof(ISubmissionFailure).IsAssignableFrom(typeof(SubmissionException)) && typeof(ISubmissionFailure).IsAssignableFrom(typeof(SubmissionCanceledException)));
+    }
 }
