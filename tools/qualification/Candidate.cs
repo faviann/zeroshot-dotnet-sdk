@@ -197,8 +197,8 @@ internal static class Candidate
     /// <summary>
     /// Every baseline entry must still be present. The baseline is the latest release tag (v<version>) that precedes
     /// the candidate, whose recorded API and CLI contract are read from that tag. Only when no release precedes it is
-    /// the baseline the accepted usage prototype. Entries may disappear only with a later native release, and only with
-    /// migration notes for it.
+    /// the baseline the accepted usage prototype. Entries may disappear only with migration notes, and only from a preview
+    /// baseline or with a later native release.
     /// </summary>
     private static Compatibility AgainstBaseline(string version, List<string> candidate)
     {
@@ -229,7 +229,8 @@ internal static class Candidate
 
     /// <summary>
     /// Refuses a candidate that is not a mirrored version of <paramref name="native"/>, binds an earlier native release
-    /// than its baseline, starts a new native release above revision 1, or lacks a baseline entry. Only a later native release may drop one, with migration notes.
+    /// than its baseline, starts a new native release above revision 1, or lacks a baseline entry. A preview baseline (a
+    /// prerelease version) or a later native release may drop one, with migration notes for the candidate's native release.
     /// </summary>
     internal static Compatibility Check(string version, string native, CompatibilityBaseline baseline, List<string> entries, List<string> candidate)
     {
@@ -245,7 +246,9 @@ internal static class Candidate
         if (missing.Count > 0)
         {
             foreach (var entry in missing) Console.Error.WriteLine($"- {entry}");
-            if (order == 0) throw new QualificationException($"{missing.Count} {baseline.Kind} baseline entries (above) are missing; native {native} revisions must keep them.");
+            // A preview promised no compatibility; a release without a prerelease label does.
+            if (order == 0 && PackageVersion.Parse(baselineVersion).Prerelease is null)
+                throw new QualificationException($"{missing.Count} {baseline.Kind} baseline entries (above) are missing; native {native} revisions must keep them.");
             if (!File.Exists(notes)) throw new QualificationException($"Breaking changes (above) need migration notes at {notes}.");
         }
         return new(baseline, baselineNative, entries.Count, missing, missing.Count > 0 ? notes : null);
