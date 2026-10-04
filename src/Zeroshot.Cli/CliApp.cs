@@ -246,9 +246,7 @@ public static class CliApp
     private static CliFailure Classify(Exception error, string command, RunId runId, AttemptEvidence? acknowledged = null,
         Cursor? delivered = null)
     {
-        if (error is ForceStopException force) return AttemptFailure(force.Attempt, $"The force request for run {runId.Value}", runId);
-        if (error is ForceStopCanceledException forceCancelled)
-            return AttemptFailure(forceCancelled.Attempt, $"The force request for run {runId.Value}", runId);
+        if (error is IForceStopFailure force) return AttemptFailure(force.Attempt, $"The force request for run {runId.Value}", runId);
         var (category, message, exit) = error switch
         {
             NativeBindingException binding => ("binding", BindingMessage(binding), ExitCodes.Invalid),
@@ -275,12 +273,7 @@ public static class CliApp
             OperationCanceledException => ("cancelled", $"'{command}' for run {runId.Value} was cancelled; nothing was stopped.", ExitCodes.Cancelled),
             _ => ("operational", $"'{command}' for run {runId.Value} failed ({Name(error)}).", ExitCodes.Failure),
         };
-        (RunWaitEvidence? evidence, NativeAttempt<RunForceResult>? forced) = error switch
-        {
-            RunWaitException wait => (wait.Evidence, wait.ForceAttempt),
-            RunWaitCanceledException wait => (wait.Evidence, wait.ForceAttempt),
-            _ => (null, null),
-        };
+        var waited = error as IRunWaitFailure;
         var observed = error switch
         {
             RunObservationException observation => new ObservationEvidence(Kebab(observation.Kind), observation.Recoveries, delivered),
@@ -289,7 +282,7 @@ public static class CliApp
         };
         return new CliFailure(category, message, exit)
         {
-            RunId = runId, Evidence = evidence, Attempt = forced is null ? acknowledged : AttemptEvidence.Of(forced),
+            RunId = runId, Evidence = waited?.Evidence, Attempt = waited?.ForceAttempt is { } forced ? AttemptEvidence.Of(forced) : acknowledged,
             Native = NativeFailure.Of(error), Observation = observed,
         };
     }

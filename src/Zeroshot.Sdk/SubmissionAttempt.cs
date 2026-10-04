@@ -1,5 +1,12 @@
 namespace Zeroshot.Native;
 
+/// <summary>A transport failure that observed for itself whether its request may have reached native.</summary>
+internal interface IDispatchEvidence
+{
+    Guid CorrelationId { get; }
+    bool SendStarted { get; }
+}
+
 /// <summary>
 /// Classifies one submission attempt without retrying. A transport adapter sends once and explains its own
 /// failures: whether the request may have reached native and whether the failure is a refusal that proves no effect.
@@ -10,10 +17,11 @@ internal static class SubmissionAttempt
     internal readonly record struct Evidence(Guid CorrelationId, bool Sent, bool Refused);
 
     /// <param name="send">Sends once and passes each fully validated response, with its correlation ID, to the capture callback.</param>
-    /// <param name="explain">Evidence for a failure the attempt reports; null rethrows it.</param>
+    /// <param name="refused">Whether a failure with <see cref="IDispatchEvidence"/> is a refusal that proves no effect.</param>
+    /// <param name="explain">Evidence for any other failure the attempt reports; null, or no explainer, rethrows it.</param>
     /// <param name="afterCapture">Lets tests place cancellation between capture and operation completion.</param>
     internal static async Task<NativeAttempt<T>> RunAsync<T>(Uri? origin, string operation, Func<Action<Guid, T>, Task> send,
-        Func<Exception, Evidence?> explain, Action? afterCapture = null) where T : class
+        Func<Exception, bool> refused, Func<Exception, Evidence?>? explain = null, Action? afterCapture = null) where T : class
     {
         var acknowledgedId = Guid.Empty;
         T? acknowledged = null;
@@ -30,7 +38,9 @@ internal static class SubmissionAttempt
         }
         catch (Exception error)
         {
-            if ((evidence = explain(error)) is null) throw;
+            evidence = error is IDispatchEvidence dispatch
+                ? new(dispatch.CorrelationId, dispatch.SendStarted, refused(error)) : explain?.Invoke(error);
+            if (evidence is null) throw;
             failure = error;
         }
 

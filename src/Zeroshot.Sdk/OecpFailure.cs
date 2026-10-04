@@ -10,7 +10,7 @@ public enum NativeOecpFailureKind { Capacity, Deadline, SizeLimit, Transport, Pr
 public sealed record OecpDispatchFacts(RequestId? RequestId, bool SendStarted, bool SendCompleted, bool ResponseReceived);
 
 /// <summary>Safe metadata for a failed unary call. Remote error text is available only by explicit inspection.</summary>
-public sealed class NativeOecpException : Exception
+public sealed class NativeOecpException : Exception, IDispatchEvidence
 {
     private readonly byte[]? rawDiagnostic;
     public string Operation { get; }
@@ -27,6 +27,7 @@ public sealed class NativeOecpException : Exception
         Dispatch = dispatch; RpcError = rpcError; rawDiagnostic = failure.ExportRawDiagnostic();
     }
     public byte[]? ExportRawDiagnostic() => rawDiagnostic?.ToArray();
+    bool IDispatchEvidence.SendStarted => Dispatch.SendStarted;
 
     internal static NativeOecpFailureKind KindOf(OperationFailureKind kind) => kind switch
     {
@@ -40,10 +41,11 @@ public sealed class NativeOecpException : Exception
 }
 
 /// <summary>Local cancellation retains dispatch facts; it never means native stop or rollback.</summary>
-public sealed class OecpOperationCanceledException : OperationCanceledException
+public sealed class OecpOperationCanceledException : OperationCanceledException, IDispatchEvidence
 {
     public OecpDispatchFacts Dispatch { get; }
     public Guid CorrelationId { get; }
+    bool IDispatchEvidence.SendStarted => Dispatch.SendStarted;
     internal OecpOperationCanceledException(OperationCancelled error, OecpDispatchFacts dispatch)
         : base(error.Message, error.CancellationToken) { Dispatch = dispatch; CorrelationId = error.CorrelationId; }
 }

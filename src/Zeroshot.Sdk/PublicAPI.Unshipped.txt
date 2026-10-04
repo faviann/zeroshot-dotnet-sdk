@@ -1,1 +1,8 @@
 #nullable enable
+Zeroshot.IForceStopFailure
+Zeroshot.IForceStopFailure.Attempt.get -> Zeroshot.Native.NativeAttempt<Zeroshot.Native.Contracts.RunForceResult!>!
+Zeroshot.IForceStopFailure.Run.get -> Zeroshot.Run!
+Zeroshot.IRunWaitFailure
+Zeroshot.IRunWaitFailure.Evidence.get -> Zeroshot.RunWaitEvidence!
+Zeroshot.IRunWaitFailure.ForceAttempt.get -> Zeroshot.Native.NativeAttempt<Zeroshot.Native.Contracts.RunForceResult!>?
+Zeroshot.IRunWaitFailure.Run.get -> Zeroshot.Run!

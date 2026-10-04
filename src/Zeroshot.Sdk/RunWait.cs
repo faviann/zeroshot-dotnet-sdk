@@ -36,18 +36,31 @@ public enum RunWaitFailureKind
 }
 
 /// <summary>
-/// A wait ended without a terminal result. This is an SDK observation failure, never native run failure or completion.
-/// <see cref="Run"/> is the exact handle waited on, including any submission acknowledgement.
+/// What every failed wait carries, cancelled (<see cref="RunWaitCanceledException"/>) or not (<see cref="RunWaitException"/>).
 /// </summary>
-public class RunWaitException : Exception
+public interface IRunWaitFailure
 {
-    public RunWaitFailureKind Kind { get; }
-    public Run Run { get; }
-    public RunWaitEvidence Evidence { get; }
+    /// <summary>The exact handle waited on, including any submission acknowledgement.</summary>
+    Run Run { get; }
+    /// <summary>The latest validated observations the wait made.</summary>
+    RunWaitEvidence Evidence { get; }
     /// <summary>
     /// The acknowledged force attempt when <see cref="Run.ForceStopAsync"/> composed this wait; otherwise null.
     /// Acknowledgement records stop intent, not that the run has finished or physically ceased.
     /// </summary>
+    NativeAttempt<RunForceResult>? ForceAttempt { get; }
+}
+
+/// <summary>
+/// A wait ended without a terminal result. This is an SDK observation failure, never native run failure or completion.
+/// <see cref="Run"/> is the exact handle waited on, including any submission acknowledgement.
+/// </summary>
+public class RunWaitException : Exception, IRunWaitFailure
+{
+    public RunWaitFailureKind Kind { get; }
+    public Run Run { get; }
+    public RunWaitEvidence Evidence { get; }
+    /// <inheritdoc/>
     public NativeAttempt<RunForceResult>? ForceAttempt { get; }
 
     internal RunWaitException(RunWaitFailureKind kind, Run run, RunWaitEvidence evidence, string message, Exception? inner,
@@ -68,11 +81,11 @@ public sealed class RunWaitTimeoutException : RunWaitException
 }
 
 /// <summary>A wait was cancelled. Observation was detached; the run was not stopped.</summary>
-public sealed class RunWaitCanceledException : OperationCanceledException
+public sealed class RunWaitCanceledException : OperationCanceledException, IRunWaitFailure
 {
     public Run Run { get; }
     public RunWaitEvidence Evidence { get; }
-    /// <summary>The acknowledged force attempt when <see cref="Run.ForceStopAsync"/> composed this wait; otherwise null.</summary>
+    /// <inheritdoc/>
     public NativeAttempt<RunForceResult>? ForceAttempt { get; }
 
     internal RunWaitCanceledException(Run run, RunWaitEvidence evidence, Exception inner, CancellationToken token,

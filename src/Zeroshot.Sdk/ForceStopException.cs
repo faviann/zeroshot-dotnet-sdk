@@ -4,10 +4,22 @@ using Zeroshot.Native.Contracts;
 namespace Zeroshot;
 
 /// <summary>
+/// What every failed <see cref="Run.ForceStopAsync"/> force carries, cancelled (<see cref="ForceStopCanceledException"/>)
+/// or not (<see cref="ForceStopException"/>).
+/// </summary>
+public interface IForceStopFailure
+{
+    /// <summary>The run the force was sent for.</summary>
+    Run Run { get; }
+    /// <summary>The unacknowledged force attempt: its outcome and safe native evidence.</summary>
+    NativeAttempt<RunForceResult> Attempt { get; }
+}
+
+/// <summary>
 /// <see cref="Run.ForceStopAsync"/> sent no acknowledged force. <see cref="Attempt"/> holds its outcome (rejected, not
 /// sent or unknown) and safe native evidence; an unknown outcome may still have stopped the run. Nothing was resent.
 /// </summary>
-public sealed class ForceStopException : Exception
+public sealed class ForceStopException : Exception, IForceStopFailure
 {
     public Run Run { get; }
     public NativeAttempt<RunForceResult> Attempt { get; }
@@ -19,7 +31,7 @@ public sealed class ForceStopException : Exception
 /// <see cref="Run.ForceStopAsync"/> was cancelled before force was acknowledged. <see cref="Attempt"/> says whether the
 /// request was not sent or its effect is unknown. Its token is the caller's when the caller cancelled.
 /// </summary>
-public sealed class ForceStopCanceledException : OperationCanceledException
+public sealed class ForceStopCanceledException : OperationCanceledException, IForceStopFailure
 {
     public Run Run { get; }
     public NativeAttempt<RunForceResult> Attempt { get; }

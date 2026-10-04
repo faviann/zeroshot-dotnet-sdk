@@ -117,7 +117,7 @@ public sealed class NativeHttpException : Exception
 }
 
 /// <summary>Local cancellation of an HTTP operation; it never means native stop or rollback.</summary>
-public sealed class NativeHttpOperationCanceledException : OperationCanceledException
+public sealed class NativeHttpOperationCanceledException : OperationCanceledException, IDispatchEvidence
 {
     public Guid CorrelationId { get; }
     /// <summary>Dispatch began, so the request may have reached the server.</summary>
