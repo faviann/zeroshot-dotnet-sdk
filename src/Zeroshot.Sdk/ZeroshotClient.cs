@@ -427,12 +427,11 @@ public sealed class Run
         // Budget or caller cancellation can surface as any failure of the interrupted operation.
         catch (Exception error) when (budget.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         { throw new RunWaitTimeoutException(this, timeout!.Value, Evidence(), error, force); }
-        // The caller's token, or the client's lifetime when it was disposed mid-wait.
-        catch (Exception error) when (cancellationToken.IsCancellationRequested || error is OperationCanceledException)
-        {
-            throw new RunWaitCanceledException(this, Evidence(), error, cancellationToken.IsCancellationRequested
-                ? cancellationToken : ((OperationCanceledException)error).CancellationToken, force);
-        }
+        catch (Exception error) when (cancellationToken.IsCancellationRequested)
+        { throw new RunWaitCanceledException(this, Evidence(), error, cancellationToken, force); }
+        // Such as the client's lifetime when it was disposed mid-wait.
+        catch (OperationCanceledException error)
+        { throw new RunWaitCanceledException(this, Evidence(), error, error.CancellationToken, force); }
         catch (Exception error)
         {
             throw new RunWaitException(stage, this, Evidence(), stage == RunWaitFailureKind.Status
