@@ -47,7 +47,7 @@ public sealed class ObservationLifecycleTests
         orderly.Start(_ => Task.CompletedTask);
         faulted.Start(_ => Task.CompletedTask);
         Check((await orderly.Completion.WaitAsync(Wait)).Origin == NativeSubscriptionOrigin.Disposed);
-        Check(orderlyQueue.StopFailure is ObjectDisposedException, "An orderly close must discard buffered records.");
+        Check(orderlyQueue.DiscardOrigin == NativeSubscriptionOrigin.Disposed, "An orderly close must discard buffered records.");
         var failure = await faulted.Completion.WaitAsync(Wait);
         Check(failure is { Origin: NativeSubscriptionOrigin.UnexpectedDisconnect, Failure.Kind: NativeSubscriptionFailureKind.SizeLimit });
         var thrown = false;
