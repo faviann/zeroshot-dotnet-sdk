@@ -77,9 +77,9 @@ internal sealed record AttemptEvidence(string Operation, NativeAttemptOutcome Ou
     RunId? ProposedRunId, RunId? AcknowledgedRunId)
 {
     public static AttemptEvidence Of<T>(NativeAttempt<T> attempt) where T : class
-    {
-        var submission = attempt as TargetSubmissionAttempt;
-        return new(attempt.Operation, attempt.Outcome, attempt.CorrelationId, attempt.Failure is OperationCanceledException,
-            submission?.ProposedRunId, submission?.AcknowledgedRunId);
-    }
+        => new(attempt.Operation, attempt.Outcome, attempt.CorrelationId, attempt.Failure is OperationCanceledException, null, null);
+
+    /// <summary>A submission adds its run IDs. A caller must hold the derived type for overload resolution to pick this.</summary>
+    public static AttemptEvidence Of(TargetSubmissionAttempt attempt)
+        => Of<TargetRunReceipt>(attempt) with { ProposedRunId = attempt.ProposedRunId, AcknowledgedRunId = attempt.AcknowledgedRunId };
 }

@@ -61,8 +61,8 @@ public sealed class CommandLineTests
     public async Task AnInlineValueIsTakenVerbatim()
     {
         var invocation = Parse("watch RUN --config=c --after=--opaque=1");
-        await Assert.That(invocation.Value("--after")).IsEqualTo("--opaque=1");
-        await Assert.That(invocation.Value("--config")).IsEqualTo("c");
+        await Assert.That(invocation.Value(CommandLine.After)).IsEqualTo("--opaque=1");
+        await Assert.That(invocation.Value(CommandLine.Config)).IsEqualTo("c");
         await Assert.That(invocation.Positionals).IsEquivalentTo(["RUN"]);
     }
 
