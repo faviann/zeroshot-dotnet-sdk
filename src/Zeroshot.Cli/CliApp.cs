@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Zeroshot.Native;
 using Zeroshot.Native.Contracts;
+using static Zeroshot.Cli.CommandLine;
 
 namespace Zeroshot.Cli;
 
@@ -40,12 +41,7 @@ public static class CliApp
                 stdout.WriteLine(CommandLine.Usage);
                 return ExitCodes.Success;
             }
-            return invocation.Command switch
-            {
-                "prepare" => Prepare(invocation, output),
-                "run" => await SubmitAsync(invocation, output, cancellationToken),
-                _ => await KnownRunAsync(invocation, output, cancellationToken),
-            };
+            return await invocation.RunAsync(output, cancellationToken);
         }
         catch (CliFailure failure)
         {
@@ -64,49 +60,49 @@ public static class CliApp
         => type.Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
     /// <summary>Local only: parse, fix identity with the SDK and write the exact exported bytes.</summary>
-    private static int Prepare(Invocation invocation, CliOutput output)
+    internal static Task<int> Prepare(Invocation invocation, CliOutput output, CancellationToken cancellationToken)
     {
-        var request = ReadRequest(invocation.Value("--request")!);
-        var destination = invocation.Value("--out")!;
+        var request = ReadRequest(invocation.Required(Request));
+        var destination = invocation.Required(Out);
         var prepared = request.Prepare();
-        CliFiles.Write(destination, prepared.ExportUtf8(), invocation.Flag("--overwrite"), "prepared request");
+        CliFiles.Write(destination, prepared.ExportUtf8(), invocation.Flag(Overwrite), "prepared request");
         output.Prepared(prepared.RunId, destination);
-        return ExitCodes.Success;
+        return Task.FromResult(ExitCodes.Success);
     }
 
     /// <summary>
     /// One submission attempt, then (unless detached) the SDK wait. The acknowledgement is reported, and saved when
     /// requested, before waiting, so a later failure never loses it; the proposed ID is never reported as the run.
     /// </summary>
-    private static async Task<int> SubmitAsync(Invocation invocation, CliOutput output, CancellationToken cancellationToken)
+    internal static async Task<int> SubmitAsync(Invocation invocation, CliOutput output, CancellationToken cancellationToken)
     {
-        var timeout = invocation.WaitBudget("--timeout");
-        var requestTimeout = invocation.Duration("--request-timeout");
-        var configuration = TargetConfiguration.Load(invocation.Value("--config")!);
-        var overwrite = invocation.Flag("--overwrite");
+        var timeout = invocation.WaitBudget(CommandLine.Timeout);
+        var requestTimeout = invocation.Duration(RequestTimeout);
+        var configuration = TargetConfiguration.Load(invocation.Required(Config));
+        var overwrite = invocation.Flag(Overwrite);
         PreparedSubmission prepared;
-        if (invocation.Value("--request") is { } requestPath) prepared = ReadRequest(requestPath).Prepare();
+        if (invocation.Value(Request) is { } requestPath) prepared = ReadRequest(requestPath).Prepare();
         else
         {
-            if (invocation.Has("--save-request")) throw CliFailure.Invocation("--save-request applies only to --request.");
-            prepared = ImportPrepared(invocation.Value("--prepared")!);
+            if (invocation.Has(SaveRequest)) throw CliFailure.Invocation("--save-request applies only to --request.");
+            prepared = ImportPrepared(invocation.Required(Prepared));
         }
-        var saveRun = invocation.Value("--save-run");
+        var saveRun = invocation.Value(SaveRun);
         // Refused now rather than after the mutation, which would leave an acknowledged run without its file.
         if (saveRun is not null && !overwrite && (File.Exists(saveRun) || Directory.Exists(saveRun)))
             throw CliFailure.OutputExists($"The run reference destination '{saveRun}' already exists; pass --overwrite to replace it.");
 
         using var client = configuration.CreateClient(requestTimeout, recover: null);
         var credentials = configuration.ResolveRunCredentials();
-        if (invocation.Value("--save-request") is { } saveRequest)
+        if (invocation.Value(SaveRequest) is { } saveRequest)
             CliFiles.Write(saveRequest, prepared.ExportUtf8(), overwrite, "prepared request");
 
         var attempt = await client.SubmitAttemptAsync(prepared, credentials, cancellationToken);
+        var evidence = AttemptEvidence.Of(attempt);
         if (attempt.AcknowledgedRunId is not { } acknowledged)
-            throw AttemptFailure(attempt, $"The submission of proposed run {prepared.RunId.Value}", runId: null);
+            throw AttemptFailure(evidence, attempt.Failure, $"The submission of proposed run {prepared.RunId.Value}", runId: null);
         output.Submission(attempt);
         var run = client.GetRun(acknowledged);
-        var evidence = AttemptEvidence.Of(attempt);
 
         if (saveRun is not null)
         {
@@ -117,85 +113,85 @@ public static class CliApp
                     failure.ExitCode) { RunId = acknowledged, Attempt = evidence };
             }
         }
-        if (invocation.Flag("--detach")) return ExitCodes.Success;
+        if (invocation.Flag(Detach)) return ExitCodes.Success;
 
         try { return Completed(output, await run.WaitAsync(timeout, cancellationToken)); }
         catch (Exception error) when (error is not CliFailure) { throw Classify(error, invocation.Command, acknowledged, evidence); }
     }
 
-    private static async Task<int> KnownRunAsync(Invocation invocation, CliOutput output, CancellationToken cancellationToken)
+    internal static Task<int> StatusAsync(Invocation invocation, CliOutput output, CancellationToken cancellationToken)
+        => OnRunAsync(invocation, invocation.Duration(RequestTimeout), async (run, _) => { output.Status(await run.StatusAsync(cancellationToken)); return ExitCodes.Success; });
+
+    internal static Task<int> WaitAsync(Invocation invocation, CliOutput output, CancellationToken cancellationToken)
     {
-        var requestTimeout = invocation.Duration("--request-timeout");
-        TimeSpan? timeout = null;
-        bool? recover = null;
-        ExecutionRef? execution = null;
-        Cursor? after = null;
-        HistoryCheckpoint? checkpoint = null;
-        switch (invocation.Command)
+        var requestTimeout = invocation.Duration(RequestTimeout);
+        var timeout = invocation.WaitBudget(CommandLine.Timeout);
+        return OnRunAsync(invocation, requestTimeout, async (run, _) => Completed(output, await run.WaitAsync(timeout, cancellationToken)));
+    }
+
+    internal static Task<int> ForceStopAsync(Invocation invocation, CliOutput output, CancellationToken cancellationToken)
+    {
+        var requestTimeout = invocation.Duration(RequestTimeout);
+        var timeout = invocation.WaitBudget(WaitTimeout);
+        return OnRunAsync(invocation, requestTimeout, async (run, _) =>
         {
-            case "wait":
-                timeout = invocation.WaitBudget("--timeout");
-                break;
-            case "force-stop":
-                timeout = invocation.WaitBudget("--wait-timeout");
-                break;
-            case "watch" or "logs":
-                if (invocation.Value("--recovery") is { } mode)
-                    recover = TargetConfiguration.Recovery(mode)
-                        ?? throw CliFailure.Invocation("--recovery must be 'established-interruptions' or 'none'.");
-                if (invocation.Value("--after") is { } cursor) after = Value(() => new Cursor(cursor), "--after must be a native cursor.");
-                if (invocation.Value("--execution") is { } filter) execution = Value(() => new ExecutionRef(filter), "--execution must be a native execution reference.");
-                if (invocation.Value("--checkpoint") is { } path)
-                    checkpoint = Value(() => HistoryCheckpoint.Parse(Utf8(path, "checkpoint")), $"The checkpoint file '{path}' is not a valid history checkpoint.", CliFailure.Input);
-                break;
-        }
+            if (!invocation.Flag(RequestOnly)) return Completed(output, await run.ForceStopAsync(timeout, cancellationToken));
+            var attempt = await run.ForceAttemptAsync(cancellationToken);
+            if (attempt.Response is null) throw AttemptFailure(AttemptEvidence.Of(attempt), attempt.Failure, $"The force request for run {run.Id.Value}", run.Id);
+            output.Force(attempt);
+            return ExitCodes.Success;
+        });
+    }
 
-        if (invocation.Command == "attach")
-            execution = Value(() => new ExecutionRef(invocation.Positionals[^1]), "EXECUTION must be a native execution reference.");
+    internal static Task<int> AttachAsync(Invocation invocation, CliOutput output, CancellationToken cancellationToken)
+    {
+        var requestTimeout = invocation.Duration(RequestTimeout);
+        var execution = Value(() => new ExecutionRef(invocation.Positionals[^1]), "EXECUTION must be a native execution reference.");
+        return OnRunAsync(invocation, requestTimeout, (run, _) => StreamAsync(invocation.Command, run.Id,
+            run.AttachAsync(execution, cancellationToken), output.Attachment, _ => null, cancellationToken));
+    }
 
-        // The grammar guarantees a configuration, a run file or both.
-        var runFile = invocation.Value("--run-file");
-        var reference = runFile is null ? null
-            : Value(() => RunReference.Parse(Utf8(runFile, "run")), $"The run file '{runFile}' is not a valid run reference.", CliFailure.Input);
-        var configuration = invocation.Value("--config") is { } configPath ? TargetConfiguration.Load(configPath) : null;
-        using var client = configuration?.CreateClient(requestTimeout, recover)
-            ?? TargetConfiguration.CreateClient(new() { Target = reference!.Target, NativeBinding = reference.NativeBinding },
-                $"The run file '{runFile}'", requestTimeout, recover);
-        var run = reference is not null
-            ? Value(() => client.GetRun(reference), $"The run file '{runFile}' names a different target than the configuration.", CliFailure.Input)
-            : Value(() => client.GetRun(new RunId(invocation.Positionals[0])), "RUN_ID must be a native run ID.");
-
-        try
+    /// <summary>The watch or logs handler: retained history after --after or --checkpoint, then live records.</summary>
+    internal static CommandHandler History(HistoryStream stream) => (invocation, output, cancellationToken) =>
+    {
+        var requestTimeout = invocation.Duration(RequestTimeout);
+        bool? recover = invocation.Value(Recovery) is { } mode
+            ? TargetConfiguration.Recovery(mode) ?? throw CliFailure.Invocation("--recovery must be 'established-interruptions' or 'none'.") : null;
+        var after = invocation.Value(After) is { } cursor ? Value(() => new Cursor(cursor), "--after must be a native cursor.") : null;
+        var execution = invocation.Value(Execution) is { } filter ? Value(() => new ExecutionRef(filter), "--execution must be a native execution reference.") : null;
+        var checkpoint = invocation.Value(Checkpoint) is { } path ? Value(() => HistoryCheckpoint.Parse(Utf8(path, "checkpoint")),
+            $"The checkpoint file '{path}' is not a valid history checkpoint.", CliFailure.Input) : null;
+        return OnRunAsync(invocation, requestTimeout, async (run, client) =>
         {
-            switch (invocation.Command)
-            {
-                case "status":
-                    output.Status(await run.StatusAsync(cancellationToken));
-                    return ExitCodes.Success;
-                case "wait":
-                    return Completed(output, await run.WaitAsync(timeout, cancellationToken));
-                case "force-stop" when invocation.Flag("--request-only"):
-                    var attempt = await run.ForceAttemptAsync(cancellationToken);
-                    if (attempt.Response is null) throw AttemptFailure(attempt, $"The force request for run {run.Id.Value}", run.Id);
-                    output.Force(attempt);
-                    return ExitCodes.Success;
-                case "force-stop":
-                    return Completed(output, await run.ForceStopAsync(timeout, cancellationToken));
-                case "attach":
-                    return await StreamAsync(invocation.Command, run.Id, run.AttachAsync(execution!, cancellationToken),
-                        output.Attachment, _ => null, cancellationToken);
-            }
-            var stream = invocation.Command == "watch" ? HistoryStream.Watch : HistoryStream.Logs;
             var start = checkpoint ?? (after is null ? null : new HistoryCheckpoint(client.Target, run.Id, stream, execution, after));
             // The SDK checks a checkpoint's scope before any I/O; --after is scoped here, so only a file can mismatch.
-            T Scoped<T>(Func<T> open) => Value(open,
-                $"The checkpoint file '{invocation.Value("--checkpoint")}' belongs to another target, run, stream or execution filter.", CliFailure.Input);
+            T Scoped<T>(Func<T> open)
+                => Value(open, $"The checkpoint file '{invocation.Value(Checkpoint)}' belongs to another target, run, stream or execution filter.", CliFailure.Input);
             return stream == HistoryStream.Watch
                 ? await StreamAsync(invocation.Command, run.Id, Scoped(() => run.WatchAsync(start, cancellationToken)),
                     output.Watch, record => record.Checkpoint.Cursor, cancellationToken)
                 : await StreamAsync(invocation.Command, run.Id, Scoped(() => run.LogsAsync(execution, start, cancellationToken)),
                     output.Log, record => record.Checkpoint.Cursor, cancellationToken);
-        }
+        }, recover);
+    };
+
+    /// <summary>
+    /// Opens the client and the run RUN names (--run-file, checked against any --config, or RUN_ID on the --config target)
+    /// and classifies SDK failures from <paramref name="use"/> against it. Callers parse --request-timeout, then their own options, before any file is read.
+    /// </summary>
+    private static async Task<int> OnRunAsync(Invocation invocation, TimeSpan? requestTimeout, Func<Run, ZeroshotClient, Task<int>> use, bool? recover = null)
+    {
+        var runFile = invocation.Value(RunFile);
+        var reference = runFile is null ? null
+            : Value(() => RunReference.Parse(Utf8(runFile, "run")), $"The run file '{runFile}' is not a valid run reference.", CliFailure.Input);
+        using var client = reference is not null && invocation.Value(Config) is null
+            ? TargetConfiguration.CreateClient(new() { Target = reference.Target, NativeBinding = reference.NativeBinding },
+                $"The run file '{runFile}'", requestTimeout, recover)
+            : TargetConfiguration.Load(invocation.Required(Config)).CreateClient(requestTimeout, recover);
+        var run = reference is not null
+            ? Value(() => client.GetRun(reference), $"The run file '{runFile}' names a different target than the configuration.", CliFailure.Input)
+            : Value(() => client.GetRun(new RunId(invocation.Positionals[0])), "RUN_ID must be a native run ID.");
+        try { return await use(run, client); }
         catch (Exception error) when (error is not CliFailure) { throw Classify(error, invocation.Command, run.Id); }
     }
 
@@ -246,7 +242,7 @@ public static class CliApp
     private static CliFailure Classify(Exception error, string command, RunId runId, AttemptEvidence? acknowledged = null,
         Cursor? delivered = null)
     {
-        if (error is IForceStopFailure force) return AttemptFailure(force.Attempt, $"The force request for run {runId.Value}", runId);
+        if (error is IForceStopFailure { Attempt: var attempt }) return AttemptFailure(AttemptEvidence.Of(attempt), attempt.Failure, $"The force request for run {runId.Value}", runId);
         var (category, message, exit) = error switch
         {
             NativeBindingException binding => ("binding", BindingMessage(binding), ExitCodes.Invalid),
@@ -288,21 +284,20 @@ public static class CliApp
     }
 
     /// <summary>An unacknowledged mutation attempt, by the SDK's outcome. An unknown outcome is never resent or replaced.</summary>
-    private static CliFailure AttemptFailure<T>(NativeAttempt<T> attempt, string what, RunId? runId) where T : class
+    private static CliFailure AttemptFailure(AttemptEvidence evidence, Exception? failure, string what, RunId? runId)
     {
-        var evidence = AttemptEvidence.Of(attempt);
-        var (category, message, exit) = (attempt.Outcome, attempt.Failure) switch
+        var (category, message, exit) = (evidence.Outcome, failure) switch
         {
             (NativeAttemptOutcome.NotSent, NativeBindingException binding) => ("binding", BindingMessage(binding), ExitCodes.Invalid),
             (NativeAttemptOutcome.NotSent, OperationCanceledException) =>
                 ("cancelled", $"{what} was cancelled before it was sent; nothing was sent.", ExitCodes.Cancelled),
-            (NativeAttemptOutcome.NotSent, var failure) =>
+            (NativeAttemptOutcome.NotSent, _) =>
                 ("operational", $"{what} could not be sent ({Name(failure)}); nothing was sent.", ExitCodes.Failure),
             (NativeAttemptOutcome.Rejected, _) => ("rejected", $"{what} was rejected by the target.", ExitCodes.Failure),
             _ => ("unknown-outcome", $"{what} may have taken effect, but no acknowledgement was received" +
                 (evidence.Cancelled ? " before it was cancelled" : "") + "; it was not resent.", ExitCodes.UnknownOutcome),
         };
-        return new CliFailure(category, message, exit) { RunId = runId, Attempt = evidence, Native = NativeFailure.Of(attempt.Failure) };
+        return new CliFailure(category, message, exit) { RunId = runId, Attempt = evidence, Native = NativeFailure.Of(failure) };
     }
 
     private static string BindingMessage(NativeBindingException binding) => binding.Reason == NativeBindingProblem.Missing

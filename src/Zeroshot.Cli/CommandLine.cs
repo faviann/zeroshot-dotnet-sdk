@@ -1,30 +1,32 @@
 namespace Zeroshot.Cli;
 
 /// <summary>One parsed command: its name, flags, option values and positional arguments.</summary>
-internal sealed class Invocation(string command, HashSet<string> flags, Dictionary<string, string> values, List<string> positionals)
+internal sealed class Invocation(Command command, HashSet<string> flags, Dictionary<string, string> values, List<string> positionals)
 {
-    public string Command { get; } = command;
+    public string Command => command.Name;
     public IReadOnlyList<string> Positionals { get; } = positionals;
     public bool Json => flags.Contains("--json");
     public bool Help => flags.Contains("--help");
 
-    public bool Flag(string name) => flags.Contains(name);
-    public string? Value(string name) => values.GetValueOrDefault(name);
-    public bool Has(string name) => flags.Contains(name) || values.ContainsKey(name);
+    public bool Flag(Option option) => flags.Contains(option.Name);
+    public string? Value(Option option) => values.GetValueOrDefault(option.Name);
+    public bool Has(Option option) => flags.Contains(option.Name) || values.ContainsKey(option.Name);
+    public string Required(Option option) => Value(option) ?? throw new InvalidOperationException($"The grammar requires {option.Name}.");
+    public Task<int> RunAsync(CliOutput output, CancellationToken cancellationToken) => command.Handler(this, output, cancellationToken);
 
-    public TimeSpan? Duration(string name)
+    public TimeSpan? Duration(Option option)
     {
-        if (Value(name) is not { } text) return null;
+        if (Value(option) is not { } text) return null;
         return CliDuration.TryParse(text, out var value) ? value
-            : throw CliFailure.Invocation($"{name} must be {CliDuration.Rule}.");
+            : throw CliFailure.Invocation($"{option.Name} must be {CliDuration.Rule}.");
     }
 
     /// <summary>A wait budget; absent or <c>infinite</c> is indefinite (null).</summary>
-    public TimeSpan? WaitBudget(string name)
+    public TimeSpan? WaitBudget(Option option)
     {
-        if (Value(name) is not { } text) return null;
+        if (Value(option) is not { } text) return null;
         return CliDuration.TryParseWaitBudget(text, out var value) ? value
-            : throw CliFailure.Invocation($"{name} must be 'infinite' or {CliDuration.Rule}, {CliDuration.MaxWaitRule}.");
+            : throw CliFailure.Invocation($"{option.Name} must be 'infinite' or {CliDuration.Rule}, {CliDuration.MaxWaitRule}.");
     }
 }
 
@@ -37,11 +39,14 @@ internal sealed record Option(string Name, string? Value = null)
 /// <summary>Options shown and checked together: at most one of them may be given, and one must be when required.</summary>
 internal sealed record Group(bool Required, params Option[] Options);
 
+/// <summary>What a command does once its invocation has been checked against its grammar.</summary>
+internal delegate Task<int> CommandHandler(Invocation invocation, CliOutput output, CancellationToken cancellationToken);
+
 /// <summary>
-/// One command's grammar in synopsis order: positional arguments, then option groups. RUN is RUN_ID with --config, or
-/// --run-file instead with an optional matching --config, so a command that takes it accepts both options.
+/// One command: its handler, then its grammar in synopsis order: positional arguments, then option groups. RUN is RUN_ID
+/// with --config, or --run-file instead with an optional matching --config, so a command that takes it accepts both options.
 /// </summary>
-internal sealed record Command(string Name, string[] Positionals, params Group[] Groups)
+internal sealed record Command(string Name, string[] Positionals, CommandHandler Handler, params Group[] Groups)
 {
     public bool TakesRun => Positionals is ["RUN", ..];
     public IEnumerable<Option> Options => [.. TakesRun ? CommandLine.RunOptions : [], .. Groups.SelectMany(group => group.Options)];
@@ -50,9 +55,9 @@ internal sealed record Command(string Name, string[] Positionals, params Group[]
     public void Check(Invocation invocation)
     {
         foreach (var group in Groups)
-            if (group.Options.Where(option => invocation.Has(option.Name)).ToList() is [var first, var second, ..])
+            if (group.Options.Where(option => invocation.Has(option)).ToList() is [var first, var second, ..])
                 throw CliFailure.Invocation($"{first.Name} and {second.Name} cannot be combined.");
-        var runFile = TakesRun && invocation.Has(CommandLine.RunFile.Name);
+        var runFile = TakesRun && invocation.Has(CommandLine.RunFile);
         if (invocation.Positionals.Count != Positionals.Length - (runFile ? 1 : 0))
         {
             var rest = string.Join(' ', Positionals.Skip(1));
@@ -61,9 +66,9 @@ internal sealed record Command(string Name, string[] Positionals, params Group[]
                 : $"'{Name}' takes RUN_ID {rest}, or {rest} with --run-file FILE.");
         }
         foreach (var group in Groups.Where(group => group.Required))
-            if (!group.Options.Any(option => invocation.Has(option.Name)))
+            if (!group.Options.Any(option => invocation.Has(option)))
                 throw CliFailure.Invocation($"'{Name}' requires {string.Join(" or ", group.Options.Select(option => option.Name))}.");
-        if (TakesRun && !runFile && !invocation.Has(CommandLine.Config.Name))
+        if (TakesRun && !runFile && !invocation.Has(CommandLine.Config))
             throw CliFailure.Invocation("RUN_ID requires --config FILE naming its target.");
     }
 }
@@ -76,7 +81,7 @@ internal static class CommandLine
 {
     public static readonly Option Config = new("--config", "FILE"), RunFile = new("--run-file", "FILE");
     public static readonly Option[] RunOptions = [RunFile, Config];
-    private static readonly Option Request = new("--request", "FILE"), Out = new("--out", "FILE"), Overwrite = new("--overwrite"),
+    public static readonly Option Request = new("--request", "FILE"), Out = new("--out", "FILE"), Overwrite = new("--overwrite"),
         Prepared = new("--prepared", "FILE"), Detach = new("--detach"), Timeout = new("--timeout", "WAIT"),
         SaveRequest = new("--save-request", "FILE"), SaveRun = new("--save-run", "FILE"), RequestTimeout = new("--request-timeout", "DURATION"),
         After = new("--after", "CURSOR"), Checkpoint = new("--checkpoint", "FILE"), Recovery = new("--recovery", "MODE"),
@@ -89,15 +94,15 @@ internal static class CommandLine
 
     public static readonly Command[] Commands =
     [
-        new("prepare", [], Required(Request), Required(Out), Optional(Overwrite)),
-        new("run", [], Required(Config), Required(Request, Prepared), Optional(Detach, Timeout), Optional(SaveRequest), Optional(SaveRun),
-            Optional(Overwrite), Optional(RequestTimeout)),
-        new("status", ["RUN"], Optional(RequestTimeout)),
-        new("wait", ["RUN"], Optional(Timeout), Optional(RequestTimeout)),
-        new("watch", ["RUN"], Optional(After, Checkpoint), Optional(Recovery), Optional(RequestTimeout)),
-        new("logs", ["RUN"], Optional(Execution), Optional(After, Checkpoint), Optional(Recovery), Optional(RequestTimeout)),
-        new("attach", ["RUN", "EXECUTION"], Optional(RequestTimeout)),
-        new("force-stop", ["RUN"], Optional(WaitTimeout, RequestOnly), Optional(RequestTimeout)),
+        new("prepare", [], CliApp.Prepare, Required(Request), Required(Out), Optional(Overwrite)),
+        new("run", [], CliApp.SubmitAsync, Required(Config), Required(Request, Prepared), Optional(Detach, Timeout), Optional(SaveRequest),
+            Optional(SaveRun), Optional(Overwrite), Optional(RequestTimeout)),
+        new("status", ["RUN"], CliApp.StatusAsync, Optional(RequestTimeout)),
+        new("wait", ["RUN"], CliApp.WaitAsync, Optional(Timeout), Optional(RequestTimeout)),
+        new("watch", ["RUN"], CliApp.History(HistoryStream.Watch), Optional(After, Checkpoint), Optional(Recovery), Optional(RequestTimeout)),
+        new("logs", ["RUN"], CliApp.History(HistoryStream.Logs), Optional(Execution), Optional(After, Checkpoint), Optional(Recovery), Optional(RequestTimeout)),
+        new("attach", ["RUN", "EXECUTION"], CliApp.AttachAsync, Optional(RequestTimeout)),
+        new("force-stop", ["RUN"], CliApp.ForceStopAsync, Optional(WaitTimeout, RequestOnly), Optional(RequestTimeout)),
     ];
 
     private static Group Required(params Option[] options) => new(true, options);
@@ -138,7 +143,7 @@ internal static class CommandLine
                 throw CliFailure.Invocation($"Unexpected argument '{arg}'.");
             else positionals.Add(arg);
         }
-        var invocation = new Invocation(args[0], flags, values, positionals);
+        var invocation = new Invocation(command, flags, values, positionals);
         if (!invocation.Help) command.Check(invocation);
         return invocation;
     }
