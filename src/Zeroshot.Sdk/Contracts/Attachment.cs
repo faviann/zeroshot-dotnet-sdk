@@ -52,7 +52,10 @@ public sealed record RunAttachEventNotification : NativeContract
 [JsonDerivedType(typeof(WorkingAgentAttachEvent), "working")]
 [JsonDerivedType(typeof(OutputAgentAttachEvent), "output")]
 [JsonDerivedType(typeof(SettledAgentAttachEvent), "settled")]
-public abstract record AgentAttachEvent : NativeContract;
+public abstract record AgentAttachEvent : NativeContract
+{
+    private protected AgentAttachEvent() { }
+}
 
 public sealed record WorkingAgentAttachEvent : AgentAttachEvent;
 public sealed record OutputAgentAttachEvent : AgentAttachEvent

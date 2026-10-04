@@ -143,7 +143,10 @@ public enum CopilotProvider
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "source")]
 [JsonDerivedType(typeof(StateSelector), "state")]
 [JsonDerivedType(typeof(ItemSelector), "item")]
-public abstract record DataSelector : NativeContract;
+public abstract record DataSelector : NativeContract
+{
+    private protected DataSelector() { }
+}
 
 [WireContract("DataSelector")]
 public sealed record StateSelector : DataSelector
@@ -164,7 +167,10 @@ public sealed record ItemSelector : DataSelector
 [JsonDerivedType(typeof(FieldDiagnosticPathSegment), "field")]
 [JsonDerivedType(typeof(IndexDiagnosticPathSegment), "index")]
 [JsonDerivedType(typeof(NodeDiagnosticPathSegment), "node")]
-public abstract record DiagnosticPathSegment : NativeContract;
+public abstract record DiagnosticPathSegment : NativeContract
+{
+    private protected DiagnosticPathSegment() { }
+}
 
 [WireContract("DiagnosticPathSegment")]
 public sealed record FieldDiagnosticPathSegment : DiagnosticPathSegment
@@ -249,7 +255,10 @@ public enum GraphDiagnosticCode
 [JsonDerivedType(typeof(MapNode), "map")]
 [JsonDerivedType(typeof(SucceedNode), "succeed")]
 [JsonDerivedType(typeof(FailNode), "fail")]
-public abstract record GraphNode : NativeContract;
+public abstract record GraphNode : NativeContract
+{
+    private protected GraphNode() { }
+}
 
 [WireContract("GraphNode")]
 public sealed record StepNode : GraphNode
@@ -434,7 +443,10 @@ public sealed record GraphSpec : NativeContract
 [JsonDerivedType(typeof(NotGuard), "not")]
 [JsonDerivedType(typeof(KOfNGuard), "k_of_n")]
 [JsonDerivedType(typeof(KOfMapGuard), "k_of_map")]
-public abstract record Guard : NativeContract;
+public abstract record Guard : NativeContract
+{
+    private protected Guard() { }
+}
 
 [WireContract("Guard")]
 public sealed record InGuard : Guard
@@ -503,7 +515,10 @@ public sealed record InputBinding : NativeContract
 [JsonDerivedType(typeof(AnyJoin), "any")]
 [JsonDerivedType(typeof(QuorumJoin), "quorum")]
 [JsonDerivedType(typeof(FirstJoin), "first")]
-public abstract record Join : NativeContract;
+public abstract record Join : NativeContract
+{
+    private protected Join() { }
+}
 
 [WireContract("Join")]
 public sealed record AllJoin : Join
@@ -555,7 +570,10 @@ public sealed record NodeOutputSelector : NativeContract
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(AgentBinding), "agent")]
 [JsonDerivedType(typeof(GitDeliveryBinding), "git_delivery")]
-public abstract record NodeRuntimeBinding : NativeContract;
+public abstract record NodeRuntimeBinding : NativeContract
+{
+    private protected NodeRuntimeBinding() { }
+}
 
 [WireContract("NodeRuntimeBinding")]
 public sealed record AgentBinding : NodeRuntimeBinding
@@ -594,7 +612,10 @@ public sealed record GitDeliveryBinding : NodeRuntimeBinding
 [JsonDerivedType(typeof(RecordPayload), "record")]
 [JsonDerivedType(typeof(ArrayPayload), "array")]
 [JsonDerivedType(typeof(EnumPayload), "enum")]
-public abstract record PayloadType : NativeContract;
+public abstract record PayloadType : NativeContract
+{
+    private protected PayloadType() { }
+}
 
 [WireContract("PayloadType")]
 public sealed record NullPayload : PayloadType
@@ -777,7 +798,10 @@ public sealed record RuntimeEnvironment : NativeContract
 [JsonDerivedType(typeof(CopilotRuntime), "copilot")]
 [JsonDerivedType(typeof(CodexRuntime), "codex")]
 [JsonDerivedType(typeof(ClaudeRuntime), "claude")]
-public abstract record RuntimePlan : NativeContract;
+public abstract record RuntimePlan : NativeContract
+{
+    private protected RuntimePlan() { }
+}
 
 [WireContract("RuntimePlan")]
 public sealed record CopilotRuntime : RuntimePlan
@@ -838,7 +862,10 @@ public sealed record StructuralBounds : NativeContract
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(AcyclicWitness), "acyclic")]
 [JsonDerivedType(typeof(BoundedWitness), "bounded")]
-public abstract record TerminationWitness : NativeContract;
+public abstract record TerminationWitness : NativeContract
+{
+    private protected TerminationWitness() { }
+}
 
 [WireContract("TerminationWitness")]
 public sealed record AcyclicWitness : TerminationWitness
@@ -931,7 +958,10 @@ public enum WorkerFailureReason
 [JsonDerivedType(typeof(VerifiedOutcome), "verified")]
 [JsonDerivedType(typeof(VerifierOutcome), "verifier")]
 [JsonDerivedType(typeof(ErrorOutcome), "error")]
-public abstract record WorkerOutcome : NativeContract;
+public abstract record WorkerOutcome : NativeContract
+{
+    private protected WorkerOutcome() { }
+}
 
 [WireContract("WorkerOutcome")]
 public sealed record VerifiedOutcome : WorkerOutcome

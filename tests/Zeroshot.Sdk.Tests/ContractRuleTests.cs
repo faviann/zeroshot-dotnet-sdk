@@ -90,4 +90,16 @@ public sealed class ContractRuleTests
         static bool Pinned(Type type) => type.GetCustomAttribute<WireContractAttribute>() is not null;
         static bool Holds(Type type) => Pinned(type) || type.IsArray && Holds(type.GetElementType()!) || type.IsGenericType && type.GetGenericArguments().Any(Holds);
     }
+
+    // Consumers switch over the variants a union declares; only the SDK may add one. The record copy constructor
+    // stays protected, as C# requires of a non-sealed record.
+    [Test]
+    public void UnionsAreClosedToOutsideDerivation()
+    {
+        foreach (var type in typeof(NativeContract).Assembly.GetExportedTypes().Where(t => t.IsAbstract && !t.IsSealed))
+            foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                if ((constructor.IsPublic || constructor.IsFamily || constructor.IsFamilyOrAssembly)
+                    && !constructor.GetParameters().Select(p => p.ParameterType).SequenceEqual([type]))
+                    throw new InvalidOperationException($"{type.Name} can be derived outside the SDK.");
+    }
 }

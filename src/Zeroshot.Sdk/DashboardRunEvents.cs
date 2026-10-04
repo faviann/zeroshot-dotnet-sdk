@@ -8,6 +8,7 @@ namespace Zeroshot.Native;
 /// <summary>One native dashboard SSE event (profile_ui/runs.rs <c>events</c>), in received order.</summary>
 public abstract record DashboardRunEvent
 {
+    private protected DashboardRunEvent() { }
     // Pages carry caller JSON and errors carry remote text; neither enters default formatting.
     public sealed override string ToString() => GetType().Name;
 }

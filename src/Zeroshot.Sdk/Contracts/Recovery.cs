@@ -67,7 +67,10 @@ public sealed record RunCheckpoint : NativeContract
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(RestartResumeFrom), "restart")]
 [JsonDerivedType(typeof(CheckpointResumeFrom), "checkpoint")]
-public abstract record RunResumeFrom : NativeContract;
+public abstract record RunResumeFrom : NativeContract
+{
+    private protected RunResumeFrom() { }
+}
 
 [WireContract("RunResumeFrom")]
 public sealed record RestartResumeFrom : RunResumeFrom;
