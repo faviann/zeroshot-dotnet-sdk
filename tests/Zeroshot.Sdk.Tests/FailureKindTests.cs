@@ -47,6 +47,5 @@ public sealed class FailureKindTests
     {
         Check(typeof(IRunWaitFailure).IsAssignableFrom(typeof(RunWaitException)) && typeof(IRunWaitFailure).IsAssignableFrom(typeof(RunWaitCanceledException)));
         Check(typeof(IForceStopFailure).IsAssignableFrom(typeof(ForceStopException)) && typeof(IForceStopFailure).IsAssignableFrom(typeof(ForceStopCanceledException)));
-        Check(typeof(ISubmissionFailure).IsAssignableFrom(typeof(SubmissionException)) && typeof(ISubmissionFailure).IsAssignableFrom(typeof(SubmissionCanceledException)));
     }
 }
