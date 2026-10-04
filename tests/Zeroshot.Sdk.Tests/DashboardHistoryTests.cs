@@ -15,7 +15,7 @@ public sealed class DashboardHistoryTests
     private static readonly JsonNode Golden = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures/history.json")))!;
 
     // The golden page restricted to (from, to] with native's cursor/completeness fields for that slice.
-    private static string Page(int from, int to, int head = 9)
+    internal static string Page(int from, int to, int head = 9)
     {
         var page = Golden["page"]!.DeepClone();
         bool Within(JsonNode? entry) => int.Parse(entry!["cursor"]!.GetValue<string>()[3..]) is var at && at > from && at <= to;
@@ -48,7 +48,7 @@ public sealed class DashboardHistoryTests
         => NativeClient.ForHttp(new() { Origin = Origin, Transport = transport ?? new() }, new HttpClient(handler), ownsHttpClient: true);
 
     [Test]
-    public async Task EveryRunRouteSendsOneBrowserRequestAndAppliesNativeHistoryRules()
+    public async Task EveryRunRouteSendsOneBrowserRequest()
     {
         var run = new RunId(Run);
         var definition = Golden["definition"]!.ToJsonString();
@@ -75,19 +75,6 @@ public sealed class DashboardHistoryTests
             using var native = Client(handler);
             Check(verify(await call(native.Dashboard)) && handler.Calls == 1, $"{method} {target}");
         }
-
-        // The #35 host checks apply to each JSON route: a page that does not continue its requested cursor is rejected.
-        foreach (var call in new Func<NativeDashboardClient, Task>[]
-        {
-            d => d.ListRunsAsync(new RunId(Golden["list"]!["runs"]![1]!["runId"]!.GetValue<string>())),
-            d => d.GetRunAsync(new RunId("0195af77-1000-7000-8000-000000000001")),
-            d => d.GetHistoryAsync(run, new Cursor("v2:2"))
-        })
-        {
-            using var native = Client(new Handler((request, _) => Task.FromResult(Reply(request, HttpStatusCode.OK,
-                request.RequestUri!.AbsolutePath.EndsWith("/history") ? Page(4, 9) : request.RequestUri.AbsolutePath == "/ui/api/runs" ? list : definition))));
-            Check((await Expect(call(native.Dashboard))).Kind == NativeHttpFailureKind.Protocol);
-        }
     }
 
     [Test]
@@ -105,19 +92,11 @@ public sealed class DashboardHistoryTests
                 error.UiProblem?.Code == "run_not_found" && !error.ToString().Contains("No retained run"));
         }
 
+        // Run, list and history arguments: RunHistoryReadTests.
         var handler = new Handler((request, _) => throw new InvalidOperationException("dispatched"));
         using var native = Client(handler);
-        foreach (var call in new Action[]
-        {
-            () => native.Dashboard.ListRunsAsync(new RunId("not-a-run")),
-            () => native.Dashboard.GetHistoryAsync(new RunId(Run), new Cursor("v2:+1")),
-            () => native.Dashboard.OpenRunEventsAsync(new RunId(Run), lastEventId: new Cursor("v2:01"))
-        })
-        {
-            try { call(); throw new InvalidOperationException("Expected argument refusal."); }
-            catch (ArgumentException) { }
-        }
-        Check(handler.Calls == 0);
+        try { _ = native.Dashboard.OpenRunEventsAsync(new RunId(Run), lastEventId: new Cursor("v2:01")); throw new InvalidOperationException("Expected argument refusal."); }
+        catch (ArgumentException error) { Check(error.ParamName == "lastEventId" && handler.Calls == 0); }
     }
 
     [Test]

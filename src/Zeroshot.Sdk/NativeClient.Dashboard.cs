@@ -63,19 +63,14 @@ public sealed class NativeDashboardClient
         new("dashboard.saveProfile", OperationTransport.Http, requestBytes: MaxDraftRequestBytes), refusals: IsProfileSaveRefusal,
         response: HttpResponsePolicy.UiRouter);
     // Native serves these with the run-history handlers behind the discovered direct-target routes.
-    private static readonly HttpBinding<RunHistoryList> ListRuns = History<RunHistoryList>("dashboard.listRuns", 4);
-    private static readonly HttpBinding<NativeHeadResult> HeadRuns = History<NativeHeadResult>("dashboard.headRuns", 4);
-    private static readonly HttpBinding<RunDefinition> GetRun = History<RunDefinition>("dashboard.getRun", 8, RunHistoryRules.Definition);
-    private static readonly HttpBinding<NativeHeadResult> HeadRun = History<NativeHeadResult>("dashboard.headRun", 8);
-    private static readonly HttpBinding<HistoryPage> GetHistory = History<HistoryPage>("dashboard.getHistory", 8);
-    private static readonly HttpBinding<NativeHeadResult> HeadHistory = History<NativeHeadResult>("dashboard.headHistory", 8);
-    private static readonly HttpBinding<DashboardRunEvents> RunEvents = History<DashboardRunEvents>("dashboard.runEvents", 8);
-    private static readonly HttpBinding<NativeHeadResult> HeadRunEvents = History<NativeHeadResult>("dashboard.headRunEvents", 8);
+    private static readonly RunHistoryReads Runs = new(("dashboard.listRuns", "dashboard.getRun", "dashboard.getHistory"), HttpProblemDialect.UiRouter,
+        ("dashboard.headRuns", "dashboard.headRun", "dashboard.headHistory"), cursorMessage: "A history cursor must be canonical v2:<sequence>.");
+    private static readonly HttpBinding<DashboardRunEvents> RunEvents = Runs.Bind<DashboardRunEvents>("dashboard.runEvents", RunHistoryReads.RecordBytes);
+    private static readonly HttpBinding<NativeHeadResult> HeadRunEvents = Runs.Bind<NativeHeadResult>("dashboard.headRunEvents", RunHistoryReads.RecordBytes);
     private const string RunsPath = "/ui/api/runs{?after}";
     private const string RunPath = "/ui/api/runs/{run_id}";
     private const string HistoryPath = "/ui/api/runs/{run_id}/history{?after}";
     private const string EventsPath = "/ui/api/runs/{run_id}/events{?after}";
-    private const string CursorMessage = "A history cursor must be canonical v2:<sequence>.";
     private const string BootstrapPath = "/ui/api/bootstrap";
     private const string ProfilesPath = "/ui/api/profiles";
     private readonly NativeClient client;
@@ -83,9 +78,6 @@ public sealed class NativeDashboardClient
 
     private static HttpBinding<T> Browser<T>(string name, int? requestBytes = null)
         => new(new(name, OperationTransport.Http, requestBytes: requestBytes), response: HttpResponsePolicy.UiRouter);
-    private static HttpBinding<T> History<T>(string name, int responseMebibytes, Action<T, RunId>? identity = null)
-        => new(new(name, OperationTransport.Http, responseBytes: responseMebibytes * 1024 * 1024), identity: identity,
-            response: HttpResponsePolicy.History(HttpProblemDialect.UiRouter));
 
     /// <summary>`GET /`: native redirects to `/ui/`.</summary>
     public Task<DashboardRedirect> GetRootAsync(CancellationToken cancellationToken = default)
@@ -171,22 +163,21 @@ public sealed class NativeDashboardClient
 
     /// <summary>`GET /ui/api/runs`: one run list page, optionally strictly after a canonical UUIDv7 run ID.</summary>
     public Task<RunHistoryList> ListRunsAsync(RunId? after = null, CancellationToken cancellationToken = default)
-        => client.ReadAsync(ListRuns, () => RunsUri(after), null, cancellationToken, validate: list => RunHistoryRules.List(list, after));
+        => Runs.ListAsync(client, after, RunsUri, null, cancellationToken);
     public Task<NativeHeadResult> HeadRunsAsync(RunId? after = null, CancellationToken cancellationToken = default)
-        => client.HeadAsync(HeadRuns, () => RunsUri(after), null, cancellationToken);
+        => Runs.HeadListAsync(client, after, RunsUri, null, cancellationToken);
 
     /// <summary>`GET /ui/api/runs/{id}`: the admitted run definition.</summary>
     public Task<RunDefinition> GetRunAsync(RunId runId, CancellationToken cancellationToken = default)
-        => client.ReadAsync(GetRun, () => RunUri(RunPath, runId, null), null, cancellationToken, runId);
+        => Runs.DefinitionAsync(client, runId, id => RunUri(RunPath, id, null), null, cancellationToken);
     public Task<NativeHeadResult> HeadRunAsync(RunId runId, CancellationToken cancellationToken = default)
-        => client.HeadAsync(HeadRun, () => RunUri(RunPath, runId, null), null, cancellationToken);
+        => Runs.HeadDefinitionAsync(client, runId, id => RunUri(RunPath, id, null), null, cancellationToken);
 
     /// <summary>`GET /ui/api/runs/{id}/history`: one page strictly after <paramref name="after"/>, or from <c>v2:0</c>.</summary>
     public Task<HistoryPage> GetHistoryAsync(RunId runId, Cursor? after = null, CancellationToken cancellationToken = default)
-        => client.ReadAsync(GetHistory, () => RunUri(HistoryPath, runId, after), null, cancellationToken,
-            validate: page => RunHistoryRules.Page(page, after ?? RunHistoryRules.InitialCursor));
+        => Runs.PageAsync(client, runId, after, (id, sent) => RunUri(HistoryPath, id, sent), null, cancellationToken);
     public Task<NativeHeadResult> HeadHistoryAsync(RunId runId, Cursor? after = null, CancellationToken cancellationToken = default)
-        => client.HeadAsync(HeadHistory, () => RunUri(HistoryPath, runId, after), null, cancellationToken);
+        => Runs.HeadPageAsync(client, runId, after, (id, sent) => RunUri(HistoryPath, id, sent), null, cancellationToken);
 
     /// <summary>
     /// `GET /ui/api/runs/{id}/events`: one bounded SSE observation of history pages. Both cursors are sent when
@@ -197,8 +188,8 @@ public sealed class NativeDashboardClient
         CancellationToken cancellationToken = default)
         => client.OpenStreamAsync<DashboardRunEvent, DashboardRunEvents>(RunEvents, () =>
             {
-                var url = RunUri(EventsPath, runId, after);
-                if (lastEventId is not null) RunHistoryRules.RequireCursor(lastEventId, nameof(lastEventId), CursorMessage);
+                var url = EventsUri(runId, after);
+                if (lastEventId is not null) Runs.RequireCursor(lastEventId, nameof(lastEventId));
                 return url;
             }, null,
             response => response.StatusCode == HttpStatusCode.OK && response.Content.Headers.ContentType?.MediaType == "text/event-stream",
@@ -207,13 +198,12 @@ public sealed class NativeDashboardClient
                 request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
                 if (lastEventId is not null) request.Headers.TryAddWithoutValidation("Last-Event-ID", lastEventId.Value);
             },
-            // Native pages stay within 8 MiB.
-            8 * 1024 * 1024,
+            RunHistoryReads.RecordBytes,
             (queue, response, body, frameBytes) => new DashboardRunEvents(queue, response, body,
                 lastEventId ?? after ?? RunHistoryRules.InitialCursor, frameBytes),
             cancellationToken);
     public Task<NativeHeadResult> HeadRunEventsAsync(RunId runId, Cursor? after = null, CancellationToken cancellationToken = default)
-        => client.HeadAsync(HeadRunEvents, () => RunUri(EventsPath, runId, after), null, cancellationToken);
+        => client.HeadAsync(HeadRunEvents, () => EventsUri(runId, after), null, cancellationToken);
 
     private Task<DashboardRedirect> RedirectAsync(HttpBinding<DashboardRedirect> binding, HttpMethod method, string path,
         CancellationToken cancellationToken)
@@ -251,17 +241,16 @@ public sealed class NativeDashboardClient
     }
 
     private HttpCall RunsUri(RunId? after)
-    {
-        if (after is not null) RunHistoryRules.RequireRunId(after, nameof(after));
-        return NativeRoutes.RunIdRoute(client.Origin, RunsPath, null, NativeHistoryClient.AfterQuery, ("after", after?.Value));
-    }
+        => NativeRoutes.RunIdRoute(client.Origin, RunsPath, null, NativeHistoryClient.AfterQuery, ("after", after?.Value));
 
     private HttpCall RunUri(string template, RunId runId, Cursor? after)
-    {
-        RunHistoryRules.RequireRunId(runId, nameof(runId));
-        if (after is not null) RunHistoryRules.RequireCursor(after, nameof(after), CursorMessage);
-        return NativeRoutes.RunIdRoute(client.Origin, template, runId.Value, template != RunPath ? NativeHistoryClient.AfterQuery : null,
+        => NativeRoutes.RunIdRoute(client.Origin, template, runId.Value, template != RunPath ? NativeHistoryClient.AfterQuery : null,
             ("after", after?.Value));
+
+    private HttpCall EventsUri(RunId runId, Cursor? after)
+    {
+        Runs.Require(runId, after);
+        return RunUri(EventsPath, runId, after);
     }
 
     private HttpCall AssetUri(string assetPath)

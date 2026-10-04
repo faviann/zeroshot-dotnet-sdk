@@ -23,7 +23,7 @@ public sealed class PrivateExportsTests
            "stdout":"","stderr":"supervisor.drive: lost","stdoutTruncated":false,"stderrTruncated":false}]}
         """;
 
-    // Routes, bodies and the private bearer: CapabilityConformanceTests.
+    // Routes, bodies and the private bearer: CapabilityConformanceTests. History bounds and continuity: RunHistoryReadTests.
     [Test]
     public async Task ReadsDecodeTheirExactResults()
     {
@@ -37,8 +37,6 @@ public sealed class PrivateExportsTests
         var snapshot = await native.Private.GetOperatorDiagnosticsAsync(run, Private);
         var definition = await native.Private.GetHistoryDefinitionAsync(run, Private);
         var first = await native.Private.GetHistoryPageAsync(run, Private);
-        // The page is validated against the requested cursor: this fixture page starts at v2:1, not after v2:4.
-        await Expect(native.Private.GetHistoryPageAsync(run, Private, new Cursor("v2:4")), NativeHttpFailureKind.Protocol);
         Check(definition.RunId == run && first.Events.Length == 9);
 
         // Truncation flags and an omitted exit status survive exactly; default formatting shows no payload.
@@ -55,7 +53,6 @@ public sealed class PrivateExportsTests
         yield return ("absent capability", n => n.Private.GetOperatorDiagnosticsAsync(run, null!));
         yield return ("hosted credentials", n => n.Private.GetHistoryDefinitionAsync(run, new(TargetAuthentication.HostedOauth, Capability)));
         yield return ("non-UUIDv7 run", n => n.Private.GetOperatorDiagnosticsAsync(new RunId("018f5e78-7f95-4c22-8d98-3f15af20c991"), Private));
-        yield return ("non-canonical cursor", n => n.Private.GetHistoryPageAsync(run, Private, new Cursor("v2:01")));
     }
 
     [Test]
@@ -73,8 +70,6 @@ public sealed class PrivateExportsTests
     {
         yield return ("diagnostics", 401, "request.unauthorized", null);
         yield return ("definition", 404, "request.not_found", null); // A target that is not in private mode.
-        yield return ("definition", 404, "run_not_found", RunHistoryProblemCode.RunNotFound);
-        yield return ("page", 400, "invalid_cursor", RunHistoryProblemCode.InvalidCursor);
     }
 
     [Test]
@@ -96,11 +91,6 @@ public sealed class PrivateExportsTests
         yield return ("stderr beyond 4 KiB", "diagnostics", () => Diagnostic(d => d["stderr"] = new string('é', 2049)), NativeHttpFailureKind.Protocol);
         yield return ("truncation flag omitted", "diagnostics", () => Diagnostic(d => d.AsObject().Remove("stdoutTruncated")), NativeHttpFailureKind.Protocol);
         yield return ("over 64 KiB", "diagnostics", () => Diagnostics() + new string(' ', 64 * 1024), NativeHttpFailureKind.SizeLimit);
-        yield return ("foreign definition", "definition", () => { var d = History["definition"]!.DeepClone(); d["runId"] = "0195af77-1000-7000-8000-000000000010"; return d.ToJsonString(); }, NativeHttpFailureKind.Protocol);
-        yield return ("definition over 8 MiB", "definition", () => History["definition"]!.ToJsonString() + new string(' ', 8 * 1024 * 1024), NativeHttpFailureKind.SizeLimit);
-        yield return ("page gap", "page", () => { var p = History["page"]!.DeepClone(); p["events"]![4]!["cursor"] = "v2:6"; return p.ToJsonString(); }, NativeHttpFailureKind.Protocol);
-        yield return ("page before request", "page after v2:2", () => History["page"]!.ToJsonString(), NativeHttpFailureKind.Protocol);
-        yield return ("page over 8 MiB", "page", () => History["page"]!.ToJsonString() + new string(' ', 8 * 1024 * 1024), NativeHttpFailureKind.SizeLimit);
     }
 
     [Test]
@@ -126,9 +116,7 @@ public sealed class PrivateExportsTests
     private static Task Call(NativeClient native, string operation) => operation switch
     {
         "diagnostics" => native.Private.GetOperatorDiagnosticsAsync(new RunId(Run), Private),
-        "definition" => native.Private.GetHistoryDefinitionAsync(new RunId(Run), Private),
-        "page after v2:2" => native.Private.GetHistoryPageAsync(new RunId(Run), Private, new Cursor("v2:2")),
-        _ => native.Private.GetHistoryPageAsync(new RunId(Run), Private)
+        _ => native.Private.GetHistoryDefinitionAsync(new RunId(Run), Private)
     };
 
     private static async Task<NativeHttpException> Expect(Task task, NativeHttpFailureKind kind)

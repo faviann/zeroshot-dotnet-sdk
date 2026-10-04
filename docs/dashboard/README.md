@@ -179,7 +179,8 @@ with no `UiProblem`.
 `DashboardTests.cs` and `DashboardContractTests.cs` cover the request shapes, result
 mapping, refusals and contracts with controlled peers. `DashboardProfileTests.cs` covers the
 profile wire shapes, save outcome classification and unretried lost replies. `DashboardHistoryTests.cs` covers
-the run routes and SSE framing, validation, bounds, slow consumers and closure. The
+the run routes and SSE framing, validation, bounds, slow consumers and closure;
+`RunHistoryReadTests.cs` covers the JSON run reads' bounds and continuity. The
 [native witness](../../tools/native-witness/README.md) runs `examples/DashboardConsumer`
 against the stock UI mount of a direct target, including profile create, update, conflicts
 and a two-save race in its isolated store, and `examples/ObservationConsumer` streams

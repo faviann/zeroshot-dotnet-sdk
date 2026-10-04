@@ -537,7 +537,7 @@
       "evidence": {
         "status": "Fixed-route POST with required PrivateCapability credentials; 4096-byte request bound; #35 definition checks and 8 MiB bound; history problem categories",
         "inventory": "native-inventory.md#L125",
-        "deterministic": "tests/Zeroshot.Sdk.Tests/PrivateExportsTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
+        "deterministic": "tests/Zeroshot.Sdk.Tests/PrivateExportsTests.cs; tests/Zeroshot.Sdk.Tests/RunHistoryReadTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
         "nativeConformance": "tools/native-witness/private.sh and examples/PrivateBootstrapConsumer: stock 10.10.0 private-mode target after bootstrap; admitted inspection run: definition of the finished run, run_not_found for an unknown run, 401 request.unauthorized for a wrong capability; tools/native-witness/run.sh and examples/HistoryConsumer: direct target refuses with 404 request.not_found",
         "limitations": "No retention guarantee. Other history categories use #35's shared problem mapping and are not exercised on this route. Wrong mode is witnessed only on a direct target; hosted mode is source-backed. A missing capability is refused locally and never sent."
       },
@@ -555,7 +555,7 @@
       "evidence": {
         "status": "Fixed-route POST with required PrivateCapability credentials; 4096-byte request bound; #35 page checks and 8 MiB bound; history problem categories",
         "inventory": "native-inventory.md#L126",
-        "deterministic": "tests/Zeroshot.Sdk.Tests/PrivateExportsTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
+        "deterministic": "tests/Zeroshot.Sdk.Tests/PrivateExportsTests.cs; tests/Zeroshot.Sdk.Tests/RunHistoryReadTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
         "nativeConformance": "tools/native-witness/private.sh and examples/PrivateBootstrapConsumer: stock 10.10.0 private-mode target after bootstrap; admitted inspection run: complete page with its terminal event and exclusive empty end page, run_not_found for an unknown run, invalid_cursor ahead of the run, 401 request.unauthorized for a wrong capability; tools/native-witness/run.sh and examples/HistoryConsumer: direct target refuses with 404 request.not_found",
         "limitations": "No retention guarantee. Other history categories use #35's shared problem mapping and are not exercised on this route. Wrong mode is witnessed only on a direct target; hosted mode is source-backed. A missing capability is refused locally and never sent."
       },
@@ -893,7 +893,7 @@
       "evidence": {
         "status": "discovered-route binding with native bounds, contract checks and closed problem categories; UI-routed requests close their connection",
         "inventory": "native-inventory.md#L204",
-        "deterministic": "tests/Zeroshot.Sdk.Tests/HistoryTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
+        "deterministic": "tests/Zeroshot.Sdk.Tests/HistoryTests.cs; tests/Zeroshot.Sdk.Tests/RunHistoryReadTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
         "nativeConformance": "tools/native-witness/run.sh, examples/HistoryConsumer and examples/ObservationConsumer: stock 10.10.0 direct UI mount list/after, detail, paging and exclusive end, HEAD, run_not_found/invalid_cursor categories, control request after history on the same client; history while active, at completion and after target restart",
         "limitations": "No retention guarantee or history SSE route. Hosted history and HEAD on hosted hosts, prior_execution/execution_voided/token_usage/force-stop events and control records are fixture-only. Native reader problem sanitization is not reproduced; unknown problem codes keep the raw status and problem."
       },
@@ -911,7 +911,7 @@
       "evidence": {
         "status": "discovered-route binding with native bounds, contract checks and closed problem categories; UI-routed requests close their connection",
         "inventory": "native-inventory.md#L205",
-        "deterministic": "tests/Zeroshot.Sdk.Tests/HistoryTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
+        "deterministic": "tests/Zeroshot.Sdk.Tests/HistoryTests.cs; tests/Zeroshot.Sdk.Tests/RunHistoryReadTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
         "nativeConformance": "tools/native-witness/run.sh, examples/HistoryConsumer and examples/ObservationConsumer: stock 10.10.0 direct UI mount list/after, detail, paging and exclusive end, HEAD, run_not_found/invalid_cursor categories, control request after history on the same client; history while active, at completion and after target restart",
         "limitations": "No retention guarantee or history SSE route. Hosted history and HEAD on hosted hosts, prior_execution/execution_voided/token_usage/force-stop events and control records are fixture-only. Native reader problem sanitization is not reproduced; unknown problem codes keep the raw status and problem."
       },
@@ -929,7 +929,7 @@
       "evidence": {
         "status": "discovered-route binding with native bounds, contract checks and closed problem categories; UI-routed requests close their connection",
         "inventory": "native-inventory.md#L206",
-        "deterministic": "tests/Zeroshot.Sdk.Tests/HistoryTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
+        "deterministic": "tests/Zeroshot.Sdk.Tests/HistoryTests.cs; tests/Zeroshot.Sdk.Tests/RunHistoryReadTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
         "nativeConformance": "tools/native-witness/run.sh, examples/HistoryConsumer and examples/ObservationConsumer: stock 10.10.0 direct UI mount list/after, detail, paging and exclusive end, HEAD, run_not_found/invalid_cursor categories, control request after history on the same client; history while active, at completion and after target restart",
         "limitations": "No retention guarantee or history SSE route. Hosted history and HEAD on hosted hosts, prior_execution/execution_voided/token_usage/force-stop events and control records are fixture-only. Native reader problem sanitization is not reproduced; unknown problem codes keep the raw status and problem."
       },
@@ -1253,7 +1253,7 @@
       "evidence": {
         "status": "fixed browser route reusing #35 history contracts, bounds, host checks and UiProblem history categories; UI-routed requests close their connection",
         "inventory": "native-inventory.md#L267",
-        "deterministic": "tests/Zeroshot.Sdk.Tests/DashboardHistoryTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
+        "deterministic": "tests/Zeroshot.Sdk.Tests/DashboardHistoryTests.cs; tests/Zeroshot.Sdk.Tests/RunHistoryReadTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
         "nativeConformance": "tools/native-witness/run.sh + examples/DashboardConsumer: stock 10.10.0 direct UI mount; results equal the discovered run-history binding over the same retained runs"
       },
       "binding": "NativeClient.Dashboard.ListRunsAsync"
@@ -1287,7 +1287,7 @@
       "evidence": {
         "status": "fixed browser route reusing #35 history contracts, bounds, host checks and UiProblem history categories; UI-routed requests close their connection",
         "inventory": "native-inventory.md#L268",
-        "deterministic": "tests/Zeroshot.Sdk.Tests/DashboardHistoryTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
+        "deterministic": "tests/Zeroshot.Sdk.Tests/DashboardHistoryTests.cs; tests/Zeroshot.Sdk.Tests/RunHistoryReadTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
         "nativeConformance": "tools/native-witness/run.sh + examples/DashboardConsumer: stock 10.10.0 direct UI mount; results equal the discovered run-history binding over the same retained runs"
       },
       "binding": "NativeClient.Dashboard.GetRunAsync"
@@ -1321,7 +1321,7 @@
       "evidence": {
         "status": "fixed browser route reusing #35 history contracts, bounds, host checks and UiProblem history categories; UI-routed requests close their connection",
         "inventory": "native-inventory.md#L269",
-        "deterministic": "tests/Zeroshot.Sdk.Tests/DashboardHistoryTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
+        "deterministic": "tests/Zeroshot.Sdk.Tests/DashboardHistoryTests.cs; tests/Zeroshot.Sdk.Tests/RunHistoryReadTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
         "nativeConformance": "tools/native-witness/run.sh + examples/DashboardConsumer: stock 10.10.0 direct UI mount; results equal the discovered run-history binding over the same retained runs"
       },
       "binding": "NativeClient.Dashboard.GetHistoryAsync"
@@ -1390,7 +1390,7 @@
       "evidence": {
         "status": "discovered-route binding with native bounds, contract checks and closed problem categories; UI-routed requests close their connection",
         "inventory": "native-inventory.md#L271",
-        "deterministic": "tests/Zeroshot.Sdk.Tests/HistoryTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
+        "deterministic": "tests/Zeroshot.Sdk.Tests/HistoryTests.cs; tests/Zeroshot.Sdk.Tests/RunHistoryReadTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
         "nativeConformance": "tools/native-witness/run.sh, examples/HistoryConsumer and examples/ObservationConsumer: stock 10.10.0 direct UI mount list/after, detail, paging and exclusive end, HEAD, run_not_found/invalid_cursor categories, control request after history on the same client; history while active, at completion and after target restart",
         "limitations": "No retention guarantee or history SSE route. Hosted history and HEAD on hosted hosts, prior_execution/execution_voided/token_usage/force-stop events and control records are fixture-only. Native reader problem sanitization is not reproduced; unknown problem codes keep the raw status and problem."
       },
@@ -1426,7 +1426,7 @@
       "evidence": {
         "status": "discovered-route binding with native bounds, contract checks and closed problem categories; UI-routed requests close their connection",
         "inventory": "native-inventory.md#L272",
-        "deterministic": "tests/Zeroshot.Sdk.Tests/HistoryTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
+        "deterministic": "tests/Zeroshot.Sdk.Tests/HistoryTests.cs; tests/Zeroshot.Sdk.Tests/RunHistoryReadTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
         "nativeConformance": "tools/native-witness/run.sh, examples/HistoryConsumer and examples/ObservationConsumer: stock 10.10.0 direct UI mount list/after, detail, paging and exclusive end, HEAD, run_not_found/invalid_cursor categories, control request after history on the same client; history while active, at completion and after target restart",
         "limitations": "No retention guarantee or history SSE route. Hosted history and HEAD on hosted hosts, prior_execution/execution_voided/token_usage/force-stop events and control records are fixture-only. Native reader problem sanitization is not reproduced; unknown problem codes keep the raw status and problem."
       },
@@ -1462,7 +1462,7 @@
       "evidence": {
         "status": "discovered-route binding with native bounds, contract checks and closed problem categories; UI-routed requests close their connection",
         "inventory": "native-inventory.md#L273",
-        "deterministic": "tests/Zeroshot.Sdk.Tests/HistoryTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
+        "deterministic": "tests/Zeroshot.Sdk.Tests/HistoryTests.cs; tests/Zeroshot.Sdk.Tests/RunHistoryReadTests.cs; tests/Zeroshot.Sdk.Tests/Fixtures/history.json",
         "nativeConformance": "tools/native-witness/run.sh, examples/HistoryConsumer and examples/ObservationConsumer: stock 10.10.0 direct UI mount list/after, detail, paging and exclusive end, HEAD, run_not_found/invalid_cursor categories, control request after history on the same client; history while active, at completion and after target restart",
         "limitations": "No retention guarantee or history SSE route. Hosted history and HEAD on hosted hosts, prior_execution/execution_voided/token_usage/force-stop events and control records are fixture-only. Native reader problem sanitization is not reproduced; unknown problem codes keep the raw status and problem."
       },
