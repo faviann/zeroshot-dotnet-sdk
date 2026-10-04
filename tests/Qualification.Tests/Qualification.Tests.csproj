@@ -1,13 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="../../native.props" />
-  <!-- Release-candidate qualification harness (README "Release qualification"). It never references the library. -->
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
   <ItemGroup>
-    <InternalsVisibleTo Include="Qualification.Tests" />
+    <PackageReference Include="TUnit" Version="1.68.17" />
+    <ProjectReference Include="../../tools/qualification/Qualification.csproj" />
   </ItemGroup>
+
 </Project>

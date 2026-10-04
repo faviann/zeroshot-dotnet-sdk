@@ -14,7 +14,9 @@ internal static class Candidate
     private const string PrototypeFile = "tools/qualification/prototype-contract.txt";
     private const string PrototypeVersion = "0.1.0-preview.1";
     private const string PrototypeDecision = "https://github.com/faviann/zeroshot-dotnet-sdk/issues/7#issuecomment-5852136561";
-    private static readonly string[] ApiFiles = ["src/Zeroshot.Sdk/PublicAPI.Shipped.txt", "src/Zeroshot.Sdk/PublicAPI.Unshipped.txt"];
+    private const string ShippedFile = "src/Zeroshot.Sdk/PublicAPI.Shipped.txt";
+    private const string UnshippedFile = "src/Zeroshot.Sdk/PublicAPI.Unshipped.txt";
+    private const string Removed = "*REMOVED*";
 
     public static int Pack(string output)
     {
@@ -77,7 +79,7 @@ internal static class Candidate
         File.WriteAllLines(Path.Combine(output, "contract.txt"), contract);
         Compare("tools/qualification/contract.txt", Entries(File.ReadAllLines(ContractFile)), contract);
 
-        var api = ApiFiles.SelectMany(File.ReadAllLines).Where(IsApiLine).Select(line => "api " + line).ToList();
+        var api = DeclaredApi(File.ReadAllLines(ShippedFile), File.ReadAllLines(UnshippedFile));
         var compatibility = Compatibility(version, api.Concat(contract.Where(line => line.StartsWith("cli ", StringComparison.Ordinal))).ToList());
 
         var manifest = new JsonObject
@@ -225,6 +227,18 @@ internal static class Candidate
 
     private static bool IsApiLine(string line) => line.Length > 0 && !line.StartsWith('#');
 
+    /// <summary>
+    /// The API a PublicAPI file pair declares: the Shipped entries that Unshipped does not mark <c>*REMOVED*</c>, plus the
+    /// Unshipped additions. A removal stays in Shipped until the release commit moves the Unshipped entries.
+    /// </summary>
+    internal static List<string> DeclaredApi(IEnumerable<string> shipped, IEnumerable<string> unshipped)
+    {
+        var pending = Entries(unshipped);
+        var removed = pending.Where(line => line.StartsWith(Removed, StringComparison.Ordinal)).Select(line => line[Removed.Length..]).ToHashSet(StringComparer.Ordinal);
+        return [.. Entries(shipped).Where(line => !removed.Contains(line))
+            .Concat(pending.Where(line => !line.StartsWith(Removed, StringComparison.Ordinal))).Select(line => "api " + line)];
+    }
+
     private static List<string> Entries(IEnumerable<string> lines) => [.. lines.Select(line => line.Trim()).Where(IsApiLine)];
 
     private static void Compare(string committed, List<string> expected, List<string> actual)
@@ -256,10 +270,16 @@ internal static class Candidate
             : new JsonObject { ["kind"] = "published", ["version"] = prior[1..], ["tag"] = prior };
         List<string> entries = prior is null
             ? Entries(File.ReadAllLines(PrototypeFile))
-            : [.. ApiFiles.SelectMany(file => Tools.Git("show", $"{prior}:{file}").Split('\n')).Where(IsApiLine).Select(line => "api " + line.Trim()),
+            : [.. DeclaredApi(Tools.Git("show", $"{prior}:{ShippedFile}").Split('\n'), Tools.Git("show", $"{prior}:{UnshippedFile}").Split('\n')),
                 .. Entries(Tools.Git("show", $"{prior}:{ContractFile}").Split('\n')).Where(line => line.StartsWith("cli ", StringComparison.Ordinal))];
         Console.WriteLine(prior is null ? "Compatibility baseline: the accepted usage prototype (no earlier v* release tag)."
             : $"Compatibility baseline: release tag {prior}.");
+        return Check(version, baseline, entries, candidate);
+    }
+
+    /// <summary>Refuses a candidate that lacks a baseline entry, unless it is a later minor version with migration notes.</summary>
+    internal static JsonObject Check(string version, JsonObject baseline, List<string> entries, List<string> candidate)
+    {
         var baselineVersion = (string)baseline["version"]!;
         var missing = entries.Where(entry => !candidate.Any(line => Matches(entry, line))).ToList();
         var (major, minor) = Minor(version);
