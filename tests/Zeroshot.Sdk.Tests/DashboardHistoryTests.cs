@@ -88,8 +88,8 @@ public sealed class DashboardHistoryTests
         })
         {
             var error = await Expect(call(refused.Dashboard));
-            Check(error is { Kind: NativeHttpFailureKind.HttpStatus, StatusCode: HttpStatusCode.NotFound, HistoryProblem: RunHistoryProblemCode.RunNotFound } &&
-                error.UiProblem?.Code == "run_not_found" && !error.ToString().Contains("No retained run"));
+            Check(error is { Kind: NativeHttpFailureKind.HttpStatus, StatusCode: HttpStatusCode.NotFound,
+                Problem: NativeRunHistoryProblem { Category: RunHistoryProblemCode.RunNotFound, Code: "run_not_found" } } && !error.ToString().Contains("No retained run"));
         }
 
         // Run, list and history arguments: RunHistoryReadTests.

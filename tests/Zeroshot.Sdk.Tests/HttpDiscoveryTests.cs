@@ -346,7 +346,7 @@ public sealed class HttpDiscoveryTests
         // The operation's refusal-body bound applies below the shared diagnostic ceiling.
         var refused = await Failure(native.ExecuteJsonAsync<TargetDiscoveryDocument>(operation, policy, uri, null, null, _ => { }, default),
             NativeHttpFailureKind.SizeLimit);
-        Check(refused.StatusCode == HttpStatusCode.NotFound && refused.Problem is null && refused.UiProblem is null);
+        Check(refused.StatusCode == HttpStatusCode.NotFound && refused.Problem is null);
     }
 
     private sealed class CountingStream(byte[] bytes) : MemoryStream(bytes)

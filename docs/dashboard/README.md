@@ -79,7 +79,7 @@ var saved = await native.Dashboard.SaveProfileAsync(new DashboardProfileSaveRequ
 {
     Name = new("review"), Graph = graph, Runtime = runtime, ExpectedRevision = current.Revision
 }, workspaceId);
-if (saved.Failure is NativeHttpException { UiProblem.Code: "profile_conflict" }) { /* reload; nothing was written */ }
+if (saved.Failure is NativeHttpException { Problem: NativeUiProblem { Code: "profile_conflict" } }) { /* reload; nothing was written */ }
 ```
 
 A save is a compare-and-swap. Native admits the graph and runtime, then under its store lock
@@ -101,7 +101,7 @@ the origin and a correlation ID:
 | 500 `profile_store_error`, any other status or code, lost or malformed reply, deadline | `Unknown`: the write may have happened |
 | Cancelled or refused before dispatch | `NotSent` |
 
-The native `{code,message}` stays on `Failure.UiProblem`. An `Unknown` save is never resent;
+The native `{code,message}` stays on `Failure.Problem` as a `NativeUiProblem`. An `Unknown` save is never resent;
 read the profile to learn its current revision. There is no automatic conflict resolution.
 Native reports a missing profile on `GetProfileAsync` as 500 `profile_store_error`, not 404.
 
@@ -109,7 +109,7 @@ Native reports a missing profile on `GetProfileAsync` as 500 `profile_store_erro
 
 Native serves the run routes with the same handlers as the discovered direct-target
 [run history](../http/README.md#run-history), so they reuse its records, 4 MiB list /
-8 MiB detail and page / 64 KiB problem bounds, host contract checks and `HistoryProblem`
+8 MiB detail and page / 64 KiB problem bounds, host contract checks and `NativeRunHistoryProblem`
 categories. Run IDs and the list position must be canonical UUIDv7 and cursors canonical
 `v2:<sequence>`, checked before dispatch. No discovery document is needed: the routes are
 fixed on the UI origin. An omitted page cursor is omitted on the wire and validated
@@ -129,7 +129,7 @@ var closed = await events.Completion; // ServerClosed is closure evidence, not r
 header, each only when supplied; native resumes after `Last-Event-ID` in preference to
 `after`, and the binding validates the first page against the same choice. It returns once
 native answers 200 `text/event-stream`. A refusal before that is a `NativeHttpException`
-with `UiProblem`, as for the other routes (`run_not_found`, `invalid_cursor`,
+with a `NativeRunHistoryProblem`, as for the other routes (`run_not_found`, `invalid_cursor`,
 `origin_rejected`). The unary deadline and request slot cover only that exchange.
 
 Native emits `history` events whose id is the page's `nextCursor` and whose data is the
@@ -169,12 +169,12 @@ a direct target hands all later requests on a UI-routed connection to its UI rou
 so a pooled connection would misroute later target calls.
 
 Native UI refusals are `{code,message}` problems exposed as
-`NativeHttpException.UiProblem`, distinct from `TargetHttpProblem`: 403
+a `NativeUiProblem` on `NativeHttpException.Problem`, distinct from `TargetHttpProblem`: 403
 `origin_rejected` (Host, Origin or Sec-Fetch-Site mismatch), 415 `json_required`,
 503 `server_stopping`, 422 `invalid_profile` (malformed drafts or failed admission)
 and 500 `profile_store_error`. Messages can carry admission detail and never appear in
 default exception formatting. Native strips HEAD response bodies, so a HEAD refusal carries only its status,
-with no `UiProblem`.
+with no `Problem`.
 
 `DashboardTests.cs` and `DashboardContractTests.cs` cover the request shapes, result
 mapping, refusals and contracts with controlled peers. `DashboardProfileTests.cs` covers the

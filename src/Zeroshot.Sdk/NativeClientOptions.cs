@@ -75,20 +75,10 @@ public sealed class NativeHttpException : Exception
     public string Stage { get; }
     public NativeHttpFailureKind Kind { get; }
     public HttpStatusCode? StatusCode { get; }
-    /// <summary>Validated remote facts, if received. Never included in default exception formatting.</summary>
-    public TargetHttpProblem? Problem { get; }
-    /// <summary>A validated problem from a direct target's UI router, for UI-routed operations only.
-    /// Never included in default exception formatting.</summary>
-    public UiProblem? UiProblem { get; }
-    /// <summary>The closed native history category of the received problem, for history operations only.
-    /// An unknown or malformed history problem leaves it null and keeps the observed status.</summary>
-    public RunHistoryProblemCode? HistoryProblem { get; }
-    /// <summary>The recognized OAuth <c>{error}</c> of a device-token refusal, for that operation only.
-    /// An unrecognized or malformed error body leaves it null and keeps the observed status.</summary>
-    public DeviceTokenError? DeviceTokenError { get; }
-    internal NativeHttpException(OperationFailure failure, TargetHttpProblem? problem = null,
-        HttpStatusCode? receivedStatus = null, UiProblem? uiProblem = null, RunHistoryProblemCode? historyProblem = null,
-        DeviceTokenError? deviceTokenError = null)
+    /// <summary>The validated refusal body, if received, as the variant its operation reads. A malformed or
+    /// unrecognized body leaves it null and keeps the observed status. Never included in default exception formatting.</summary>
+    public NativeHttpProblem? Problem { get; }
+    internal NativeHttpException(OperationFailure failure, NativeHttpProblem? problem = null, HttpStatusCode? receivedStatus = null)
         : base(failure.Message)
     {
         Operation = failure.Operation;
@@ -97,9 +87,6 @@ public sealed class NativeHttpException : Exception
         Kind = KindOf(failure.Kind);
         StatusCode = failure.StatusCode ?? receivedStatus;
         Problem = problem;
-        UiProblem = uiProblem;
-        HistoryProblem = historyProblem;
-        DeviceTokenError = deviceTokenError;
         rawDiagnostic = failure.ExportRawDiagnostic();
     }
     public byte[]? ExportRawDiagnostic() => rawDiagnostic?.ToArray();

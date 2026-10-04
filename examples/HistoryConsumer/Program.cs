@@ -41,12 +41,13 @@ Check(heads.All(head => head.StatusCode == HttpStatusCode.OK && head.ContentLeng
 
 var unknown = new RunId("0195af77-9999-7000-8000-000000000001");
 var missing = await Refused(native.History.DetailAsync(discovery, unknown, cancellationToken: token));
-Check(missing is { StatusCode: HttpStatusCode.NotFound, HistoryProblem: RunHistoryProblemCode.RunNotFound, UiProblem.Code: "run_not_found", Problem: null },
+Check(missing is { StatusCode: HttpStatusCode.NotFound,
+    Problem: NativeRunHistoryProblem { Category: RunHistoryProblemCode.RunNotFound, Code: "run_not_found", Details: null } },
     "unknown run problem from the UI router");
 var ahead = await Refused(native.History.PageAsync(discovery, runId, new Cursor("v2:999999"), cancellationToken: token));
-Check(ahead is { StatusCode: HttpStatusCode.BadRequest, HistoryProblem: RunHistoryProblemCode.InvalidCursor }, "cursor ahead problem");
+Check(ahead is { StatusCode: HttpStatusCode.BadRequest, Problem: NativeRunHistoryProblem { Category: RunHistoryProblemCode.InvalidCursor } }, "cursor ahead problem");
 var headMissing = await Refused(native.History.HeadDetailAsync(discovery, unknown, cancellationToken: token));
-Check(headMissing is { StatusCode: HttpStatusCode.NotFound, Problem: null, UiProblem: null }, "HEAD refusal has status only");
+Check(headMissing is { StatusCode: HttpStatusCode.NotFound, Problem: null }, "HEAD refusal has status only");
 
 // Private exports on a direct target: native refuses before checking any capability.
 var operatorAuthority = new TargetControlCredentials(TargetAuthentication.PrivateCapability, "not-a-private-target");
@@ -56,7 +57,8 @@ var wrongMode = new[]
     await Refused(native.Private.GetHistoryDefinitionAsync(runId, operatorAuthority, token)),
     await Refused(native.Private.GetHistoryPageAsync(runId, operatorAuthority, cancellationToken: token))
 };
-Check(wrongMode.All(error => error is { StatusCode: HttpStatusCode.NotFound, Problem.Code: "request.not_found", HistoryProblem: null }),
+Check(wrongMode.All(error => error is
+    { StatusCode: HttpStatusCode.NotFound, Problem: { Code: "request.not_found" } and not NativeRunHistoryProblem { Category: not null } }),
     "private exports refused by a direct target");
 
 // The UI router would otherwise keep a pooled history connection and answer this control request with 404.
@@ -67,7 +69,7 @@ Console.WriteLine(JsonSerializer.Serialize(new
 {
     list = Wire(list), definition = new { phase = definition.Phase.ToString(), cursor = definition.Cursor.Value, terminal = Wire(definition.Terminal!) },
     page = Wire(page), heads = heads.Select(head => new { head.StatusCode, head.ContentLength }),
-    problems = new[] { missing.HistoryProblem.ToString(), ahead.HistoryProblem.ToString() },
+    problems = new[] { missing, ahead }.Select(error => (error.Problem as NativeRunHistoryProblem)?.Category.ToString()),
     privateExportsWrongMode = wrongMode.Select(error => new { error.Operation, status = (int)error.StatusCode!, error.Problem!.Code }),
     sessionAfterHistory = true
 }));

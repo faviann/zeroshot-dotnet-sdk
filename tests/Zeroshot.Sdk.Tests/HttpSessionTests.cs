@@ -183,7 +183,7 @@ public sealed class HttpSessionTests
         using var client = NativeClient.ForHttp(Options(new() { CaptureRawDiagnostics = true }), http);
         var failure = await Failure(client.Target.CreateOecpSessionAsync(Discovery()), NativeHttpFailureKind.HttpStatus);
         Check(failure.StatusCode == HttpStatusCode.Forbidden && failure.Problem!.Code == "request.unauthorized");
-        var problem = failure.Problem!;
+        var problem = ((NativeTargetProblem)failure.Problem!).Body;
         var details = problem.Details!.Value;
         Check(problem.Message == Control && details.GetProperty("fact").GetString() == Session);
         Check(details.GetProperty("httpStatus").GetInt32() == 123);
@@ -221,7 +221,7 @@ public sealed class HttpSessionTests
             using var client = NativeClient.ForHttp(Options(), http);
             var failure = await Failure(client.Target.CreateOecpSessionAsync(Discovery()), NativeHttpFailureKind.HttpStatus);
             Check(failure.StatusCode == HttpStatusCode.Forbidden && (failure.Problem is not null) == valid);
-            if (valid) Check(failure.Problem!.Details!.Value.GetProperty("text").GetString() == text);
+            if (valid) Check(((NativeTargetProblem)failure.Problem!).Body.Details!.Value.GetProperty("text").GetString() == text);
             Check(!failure.ToString().Contains("😀"));
         }
     }

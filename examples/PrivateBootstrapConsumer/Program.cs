@@ -52,9 +52,10 @@ var missing = new[]
     await Refused(native.Private.GetHistoryDefinitionAsync(unknown, operatorAuthority, token)),
     await Refused(native.Private.GetHistoryPageAsync(unknown, operatorAuthority, cancellationToken: token))
 };
-Check(missing.All(error => error is { StatusCode: System.Net.HttpStatusCode.NotFound, HistoryProblem: RunHistoryProblemCode.RunNotFound, Problem.Code: "run_not_found" }), "unknown run history");
+Check(missing.All(error => error is { StatusCode: System.Net.HttpStatusCode.NotFound,
+    Problem: NativeRunHistoryProblem { Category: RunHistoryProblemCode.RunNotFound, Code: "run_not_found" } }), "unknown run history");
 var ahead = await Refused(native.Private.GetHistoryPageAsync(runId, operatorAuthority, new Cursor("v2:999999"), token));
-Check(ahead is { StatusCode: System.Net.HttpStatusCode.BadRequest, HistoryProblem: RunHistoryProblemCode.InvalidCursor }, "cursor ahead");
+Check(ahead is { StatusCode: System.Net.HttpStatusCode.BadRequest, Problem: NativeRunHistoryProblem { Category: RunHistoryProblemCode.InvalidCursor } }, "cursor ahead");
 var wrong = new TargetControlCredentials(TargetAuthentication.PrivateCapability, Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32)));
 var unauthorized = new[]
 {
@@ -62,7 +63,8 @@ var unauthorized = new[]
     await Refused(native.Private.GetHistoryDefinitionAsync(runId, wrong, token)),
     await Refused(native.Private.GetHistoryPageAsync(runId, wrong, cancellationToken: token))
 };
-Check(unauthorized.All(error => error is { StatusCode: System.Net.HttpStatusCode.Unauthorized, Problem.Code: "request.unauthorized", HistoryProblem: null }), "wrong capability");
+Check(unauthorized.All(error => error is { StatusCode: System.Net.HttpStatusCode.Unauthorized,
+    Problem: { Code: "request.unauthorized" } and not NativeRunHistoryProblem { Category: not null } }), "wrong capability");
 
 // A private OECP session with the same capability: native issues a capability-bearing session, and the
 // run is inspectable over its WebSocket. No hosted authority or other private operation is implied.
@@ -92,7 +94,7 @@ Console.WriteLine(JsonSerializer.Serialize(new
         diagnostics = Wire(diagnostics),
         unknownDiagnostics = Wire(unknownDiagnostics),
         refusals = missing.Append(ahead).Concat(unauthorized)
-            .Select(error => new { error.Operation, status = (int)error.StatusCode!, problem = Wire(error.Problem!) })
+            .Select(error => new { error.Operation, status = (int)error.StatusCode!, problem = ProblemWire(error.Problem!) })
     },
     oecp = new { endpoint = session.Endpoint, sessionBearer = "present (not recorded)", emptyGet = Wire(cluster), status = Wire(status) }
 }));
@@ -119,7 +121,15 @@ static object Evidence(NativeAttempt<EmptyResponse> attempt) => new
     outcome = attempt.Outcome.ToString(),
     attempt.CorrelationId,
     status = (attempt.Failure as NativeHttpException)?.StatusCode is { } status ? (int)status : (int?)null,
-    problem = (attempt.Failure as NativeHttpException)?.Problem is { } problem ? Wire(problem) : (JsonElement?)null
+    problem = (attempt.Failure as NativeHttpException)?.Problem is { } problem ? ProblemWire(problem) : (JsonElement?)null
+};
+// The refusal body as native sent it: {code, message, details?}, whichever variant the operation reads it as.
+static JsonElement ProblemWire(NativeHttpProblem problem) => problem switch
+{
+    NativeTargetProblem { Body: var body } => Wire(body),
+    NativeRunHistoryProblem history => JsonSerializer.SerializeToElement(new { code = history.Code, message = history.Message, details = history.Details },
+        new JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull }),
+    _ => throw new InvalidOperationException($"Unexpected {problem.GetType().Name} from a private export.")
 };
 static JsonElement Wire<T>(T value)
 {

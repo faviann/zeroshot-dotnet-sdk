@@ -314,12 +314,32 @@ public sealed class HistoryTests
         }
         catch (NativeHttpException error)
         {
-            Check(error.Kind == NativeHttpFailureKind.HttpStatus && error.StatusCode == status && error.HistoryProblem == expected);
-            Check(body.StartsWith('{') == (hosted ? error.Problem : (object?)error.UiProblem) is not null);
-            Check((hosted ? (object?)error.UiProblem : error.Problem) is null);
+            Check(error.Kind == NativeHttpFailureKind.HttpStatus && error.StatusCode == status &&
+                (error.Problem as NativeRunHistoryProblem)?.Category == expected);
+            Check(body.StartsWith('{') == error.Problem is NativeRunHistoryProblem);
             return;
         }
         throw new InvalidOperationException("Expected refusal.");
+    }
+
+    [Test]
+    public async Task HistoryProblemsKeepTheirSurfaceDialect()
+    {
+        const string detailed = """{"code":"run_not_found","message":"History refused.","details":{"fact":1}}""";
+        var multiline = $$"""{"code":"history_unavailable","message":"{{string.Concat(Enumerable.Repeat("line\\n", 400))}}"}""";
+        async Task<NativeHttpProblem?> Refusal(bool hosted, string body)
+        {
+            using var native = ClientFor(new Handler((request, _) => Task.FromResult(Reply(request, body, HttpStatusCode.NotFound))));
+            return (await Expect(hosted
+                ? native.History.PageAsync(Discovery(TargetAuthentication.HostedOauth), new RunId(Run), credentials: new(TargetAuthentication.HostedOauth, Bearer))
+                : native.History.PageAsync(Discovery(), new RunId(Run)), NativeHttpFailureKind.HttpStatus)).Problem;
+        }
+        // Hosted hosts send TargetHttpProblem: object details survive, the UI router's unbounded message does not.
+        Check(await Refusal(true, detailed) is NativeRunHistoryProblem { Category: RunHistoryProblemCode.RunNotFound, Details: not null });
+        Check(await Refusal(true, multiline) is null);
+        // The direct UI mount sends strict {code,message}.
+        Check(await Refusal(false, detailed) is null);
+        Check(await Refusal(false, multiline) is NativeRunHistoryProblem { Category: RunHistoryProblemCode.HistoryUnavailable, Details: null });
     }
 
     [Test]
@@ -327,7 +347,7 @@ public sealed class HistoryTests
     {
         using var native = ClientFor(new Handler((request, _) => Task.FromResult(Reply(request, "", HttpStatusCode.NotFound))));
         var error = await Expect(native.History.HeadDetailAsync(Discovery(), new RunId(Run)), NativeHttpFailureKind.HttpStatus);
-        Check(error.StatusCode == HttpStatusCode.NotFound && error.Problem is null && error.HistoryProblem is null);
+        Check(error.StatusCode == HttpStatusCode.NotFound && error.Problem is null);
     }
 
     private static async Task<NativeHttpException> Expect(Task task, NativeHttpFailureKind kind)

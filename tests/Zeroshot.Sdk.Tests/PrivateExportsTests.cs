@@ -80,7 +80,8 @@ public sealed class PrivateExportsTests
         using var native = ClientFor(new Handler((request, _) => Task.FromResult(
             Reply(request, JsonSerializer.Serialize(new { code, message }), (HttpStatusCode)status))));
         var error = await Expect(Call(native, operation), NativeHttpFailureKind.HttpStatus);
-        Check(error.StatusCode == (HttpStatusCode)status && error.Problem?.Code == code && error.HistoryProblem == history, $"{operation} {code}");
+        Check(error.StatusCode == (HttpStatusCode)status && error.Problem?.Code == code &&
+            (error.Problem as NativeRunHistoryProblem)?.Category == history, $"{operation} {code}");
         Check(!error.ToString().Contains(message) && !error.ToString().Contains(Capability));
     }
 

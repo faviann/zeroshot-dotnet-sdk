@@ -55,7 +55,7 @@ public sealed class NativeOAuthClient
 
     /// <summary>
     /// Polls the token endpoint once with the caller's registered device token. A recognized OAuth error is
-    /// <see cref="NativeAttemptOutcome.Rejected"/> with <see cref="NativeHttpException.DeviceTokenError"/> set;
+    /// <see cref="NativeAttemptOutcome.Rejected"/> with a <see cref="NativeDeviceTokenProblem"/>;
     /// the caller owns waiting, <c>slow_down</c> backoff and expiry.
     /// </summary>
     public Task<NativeAttempt<OAuthTokens>> ExchangeDeviceTokenAsync(TargetDiscoveryDocument discovery,

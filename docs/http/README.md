@@ -173,12 +173,14 @@ the smaller of 4 MiB and the configured limit. Error bodies obey the response an
 diagnostic ceilings. Redirects and changed response URLs fail without a resend.
 
 `NativeHttpException.StatusCode` retains a received status, including when the body
-exceeds a bound. `Problem` retains a valid `TargetHttpProblem` with exact code,
+exceeds a bound. `Problem` retains a valid refusal body as one closed
+`NativeHttpProblem` variant, with its code on `Problem.Code`. Target operations yield
+`NativeTargetProblem`, whose `Body` is the `TargetHttpProblem` with exact code,
 message and optional object details. Its native limits are 128 ASCII code bytes,
 1024 non-control UTF-8 message bytes and 60 KiB serialized details. Malformed problem
 bodies keep the HTTP status without inventing native facts. Remote text, endpoint
 and tokens never appear in default exception, contract or credential formatting;
-explicit `Problem` property inspection and optional raw export can expose them.
+explicit `Problem` inspection and optional raw export can expose them.
 `HttpSessionTests.cs` covers controlled direct/hosted/private behavior, trusted HTTPS,
 WSS authority rules, refusal facts and credential canaries. The native witness
 acquires a private-mode session with a bootstrapped capability and inspects a run over
@@ -572,7 +574,7 @@ var metadata = await native.OAuth.MetadataAsync(discovery);
 var code = await native.OAuth.BeginDeviceAuthorizationAsync(discovery);
 // Show code.VerificationUriComplete ?? code.VerificationUri and code.UserCode, then poll yourself.
 var exchange = await native.OAuth.ExchangeDeviceTokenAsync(discovery, code, registeredDeviceToken);
-if (exchange.Failure is NativeHttpException { DeviceTokenError: DeviceTokenError.SlowDown }) { /* wait longer */ }
+if (exchange.Failure is NativeHttpException { Problem: NativeDeviceTokenProblem { Error: DeviceTokenError.SlowDown } }) { /* wait longer */ }
 var tokens = exchange.Response; // Acknowledged only
 var session = await native.OAuth.VerifySessionAsync(discovery,
     new TargetControlCredentials(TargetAuthentication.HostedOauth, tokens!.AccessToken));
@@ -631,8 +633,8 @@ and refresh may rotate the refresh token. They therefore return `NativeAttempt`
 evidence. A lost reply or malformed token response is `Unknown`, and the caller
 cannot assume its refresh token is still current. For the device exchange, a strict
 `{error}` body naming `authorization_pending`, `slow_down`, `access_denied` or
-`expired_token` is `Rejected`, and `NativeHttpException.DeviceTokenError` carries the
-typed code. Any other error text, extra fields or a non-OAuth body stays `Unknown`
+`expired_token` is `Rejected`, and `NativeHttpException.Problem` is a
+`NativeDeviceTokenProblem` whose `Error` carries the typed code. Any other error text, extra fields or a non-OAuth body stays `Unknown`
 with the status retained. Refresh refusals are `Rejected` only for the problem pairs
 used by connection management (400 `invalid_request`, 401 `unauthorized`,
 403 `forbidden`, 404 `not_found`); every other received failure is `Unknown`.
@@ -779,10 +781,11 @@ answers with native `ApiError` `{code,message}` bodies (history codes and bounda
 codes such as `origin_rejected`). Operations marked as UI-routed parse these as
 `UiProblem`, bounded only by the operation's problem-body limit: native messages can
 exceed `TargetHttpProblem`'s 1 KiB single-line rule. Hosted history is not UI-routed;
-native's reader parses its refusals as `TargetHttpProblem`, exposed as `Problem`.
-For history operations `HistoryProblem` maps the code from whichever problem was
-received onto the closed native vocabulary (`run_not_found` … `history_incompatible`)
-as `RunHistoryProblemCode`. Unknown or malformed problems leave it null and keep the
+native's reader parses its refusals as `TargetHttpProblem`. Either way a history
+operation's `Problem` is a `NativeRunHistoryProblem` with the code, message, the target
+problem's details, and `Category`: the code on the closed native vocabulary
+(`run_not_found` … `history_incompatible`) as `RunHistoryProblemCode`. An unknown code
+leaves `Category` null; a malformed problem leaves `Problem` null and keeps the
 observed status; the native browser sanitization to `history_unavailable` is not
 reproduced.
 
@@ -909,13 +912,14 @@ UTF-8 bytes; the whole response is bounded at 64 KiB. An empty list does not sho
 whether the run exists. The text is command output. Default record and exception
 formatting never shows it or a capability; inspect it explicitly.
 
-Refusals keep their status and `TargetHttpProblem`:
+Refusals keep their status and problem: a `NativeTargetProblem` for diagnostics, a
+`NativeRunHistoryProblem` for the history exports.
 
 - A target that is not in private mode answers 404 `request.not_found`, before any
   capability check.
 - A wrong capability gets 401 `request.unauthorized`.
 - A malformed request gets 400 `request.invalid`.
-- The history exports also set `HistoryProblem` from native's history codes, such
+- The history exports also set `Category` from native's history codes, such
   as 404 `run_not_found` and 400 `invalid_cursor`.
 
 `PrivateExportsTests.cs` covers the exact requests, authority and argument

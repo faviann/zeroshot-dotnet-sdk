@@ -136,9 +136,9 @@ public sealed class RunHistoryReadTests
             Check(rule.Outcome switch
             {
                 Outcome.Protocol => error is { Kind: NativeHttpFailureKind.Protocol, StatusCode: HttpStatusCode.OK },
-                Outcome.SizeLimit => error is { Kind: NativeHttpFailureKind.SizeLimit, HistoryProblem: null },
+                Outcome.SizeLimit => error is { Kind: NativeHttpFailureKind.SizeLimit, Problem: null },
                 Outcome.Refused => error is { Kind: NativeHttpFailureKind.HttpStatus, StatusCode: HttpStatusCode.NotFound,
-                    HistoryProblem: RunHistoryProblemCode.RunNotFound },
+                    Problem: NativeRunHistoryProblem { Category: RunHistoryProblemCode.RunNotFound } },
                 _ => false
             } && !error.ToString().Contains("No retained run"), $"{rule.Name}: {error}");
         }

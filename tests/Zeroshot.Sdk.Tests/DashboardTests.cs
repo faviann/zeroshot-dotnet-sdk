@@ -118,7 +118,7 @@ public sealed class DashboardTests
                 try { await call(native.Dashboard); }
                 catch (NativeHttpException error)
                 {
-                    Check(error.Kind == kind && error.StatusCode == status && error.UiProblem?.Code == code && error.Problem is null && handler.Calls == 1, error.ToString());
+                    Check(error.Kind == kind && error.StatusCode == status && error.Problem is null or NativeUiProblem && error.Problem?.Code == code && handler.Calls == 1, error.ToString());
                     continue;
                 }
                 throw new InvalidOperationException($"Expected {kind}.");

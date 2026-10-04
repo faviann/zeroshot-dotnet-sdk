@@ -162,7 +162,7 @@ public sealed partial class NativeClient : IDisposable, IAsyncDisposable
         var responseGate = new object();
         HttpResponseMessage? ownedResponse = null;
         HttpResponseMessage? handedOff = null;
-        HttpRefusal refusal = default;
+        NativeHttpProblem? refusal = null;
         HttpStatusCode? receivedStatus = null;
         var sendStarted = 0;
         var cleanupStarted = false;
@@ -234,7 +234,7 @@ public sealed partial class NativeClient : IDisposable, IAsyncDisposable
             lock (responseGate) handedOff?.Dispose();
             if (error is OperationCancelled cancelled) throw new NativeHttpOperationCanceledException(cancelled, Volatile.Read(ref sendStarted) != 0);
             if (error is not OperationFailure failure) throw;
-            throw policy.Failure(failure, refusal, receivedStatus);
+            throw new NativeHttpException(failure, refusal, receivedStatus);
         }
     }
 
@@ -266,8 +266,8 @@ public sealed partial class NativeClient : IDisposable, IAsyncDisposable
                 // Only a cancelled HTTP operation carries its own dispatch facts; other failures read this attempt's flag.
                 NativeHttpException refused => new(refused.CorrelationId, Volatile.Read(ref dispatched) != 0,
                     // A recognized OAuth error is the server's statement that no tokens were issued.
-                    refused.DeviceTokenError is not null || refused.Kind == NativeHttpFailureKind.HttpStatus &&
-                        (refused.Problem?.Code ?? refused.UiProblem?.Code) is { } code && isRefusal(refused.StatusCode, code)),
+                    refused.Problem is NativeDeviceTokenProblem || refused.Kind == NativeHttpFailureKind.HttpStatus &&
+                        refused.Problem?.Code is { } code && isRefusal(refused.StatusCode, code)),
                 OperationCanceledException => new(correlationId, Volatile.Read(ref dispatched) != 0, false),
                 _ => null
             }, afterCapture);

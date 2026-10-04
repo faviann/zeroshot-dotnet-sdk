@@ -15,7 +15,7 @@ namespace Zeroshot.Client.Tests;
 public sealed class CapabilityConformanceTests
 {
     public enum Kind { Read, Mutation }
-    /// <summary>Where a refusal's problem lands: <see cref="NativeHttpException.Problem"/> or <see cref="NativeHttpException.UiProblem"/>.</summary>
+    /// <summary>Which body a refusal is read as: <see cref="NativeTargetProblem"/> or <see cref="NativeUiProblem"/>, or either as a <see cref="NativeRunHistoryProblem"/>.</summary>
     public enum Dialect { Target, UiRouter }
 
     /// <summary>A request as sent: method, URL, every header as "Name: value" in ordinal order, and the body text.</summary>
@@ -645,9 +645,15 @@ public sealed class CapabilityConformanceTests
             request.Content is null ? null : await request.Content.ReadAsStringAsync(token));
     }
 
-    private static string? Code(NativeHttpException error, Dialect dialect) => dialect == Dialect.Target ? error.Problem?.Code : error.UiProblem?.Code;
-    private static string? Message(NativeHttpException error, Dialect dialect) => dialect == Dialect.Target ? error.Problem?.Message : error.UiProblem?.Message;
-    private static object? Foreign(NativeHttpException error, Dialect dialect) => dialect == Dialect.Target ? error.UiProblem : error.Problem;
+    private static string? Code(NativeHttpException error, Dialect dialect) => Message(error, dialect) is null ? null : error.Problem!.Code;
+    // History reads land as their own variant in either dialect; everything else lands in its capability's dialect only.
+    private static string? Message(NativeHttpException error, Dialect dialect) => error.Problem switch
+    {
+        NativeTargetProblem p when dialect == Dialect.Target => p.Body.Message,
+        NativeUiProblem p when dialect == Dialect.UiRouter => p.Body.Message,
+        NativeRunHistoryProblem p => p.Message,
+        _ => null
+    };
 
     [Test]
     [MethodDataSource(nameof(WireOperations))]
@@ -700,8 +706,8 @@ public sealed class CapabilityConformanceTests
             // Reads throw the refusal; mutations return it as evidence.
             NativeAttemptOutcome? expected = op.Kind == Kind.Read ? null : row.Rejected ? NativeAttemptOutcome.Rejected : NativeAttemptOutcome.Unknown;
             Check(result.Outcome == expected, $"{op} {row}: {result.Outcome?.ToString() ?? "read"} instead of {expected?.ToString() ?? "read"}");
-            Check(result is { Responded: false, Failure: NativeHttpException { Kind: NativeHttpFailureKind.HttpStatus, DeviceTokenError: null } http } &&
-                http.StatusCode == (HttpStatusCode)row.Status && Code(http, capability.Dialect) == row.Code && Foreign(http, capability.Dialect) is null,
+            Check(result is { Responded: false, Failure: NativeHttpException { Kind: NativeHttpFailureKind.HttpStatus } http } &&
+                http.StatusCode == (HttpStatusCode)row.Status && Code(http, capability.Dialect) == row.Code,
                 $"{op} {row} did not keep its status and problem: {result.Failure}");
             Check(handler.Calls == 1, $"{op} {row} sent {handler.Calls} requests");
         }
