@@ -173,13 +173,7 @@ public sealed partial class OecpConnection : IDisposable, IAsyncDisposable
         Action? afterCapture = null) where T : class
         => SubmissionAttempt.RunAsync<T>(Origin, method,
             capture => CallAsync(method, parameters, validate, cancellationToken, request, control: control, onResponse: capture),
-            error => error switch
-            {
-                NativeOecpException failure => new(failure.CorrelationId, failure.Dispatch.SendStarted,
-                    failure.RpcError is { } rpcError && isRefusal(rpcError)),
-                OecpOperationCanceledException cancelled => new(cancelled.CorrelationId, cancelled.Dispatch.SendStarted, false),
-                _ => null
-            }, afterCapture);
+            error => error is NativeOecpException { RpcError: { } rpcError } && isRefusal(rpcError), afterCapture: afterCapture);
 
     // Connection admission and dispatch answer these before any backend method runs
     // (openengine-cluster-server connection/admission.rs and dispatch.rs).

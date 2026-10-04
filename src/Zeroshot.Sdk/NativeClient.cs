@@ -261,13 +261,13 @@ public sealed partial class NativeClient : IDisposable, IAsyncDisposable
                 var value = await readSuccess(message, context).ConfigureAwait(false);
                 capture(correlationId, value);
                 return value;
-            }, cancellationToken, OnDispatch, configure), error => error switch
+            }, cancellationToken, OnDispatch, configure), _ => false, error => error switch
             {
+                // Only a cancelled HTTP operation carries its own dispatch facts; other failures read this attempt's flag.
                 NativeHttpException refused => new(refused.CorrelationId, Volatile.Read(ref dispatched) != 0,
                     // A recognized OAuth error is the server's statement that no tokens were issued.
                     refused.DeviceTokenError is not null || refused.Kind == NativeHttpFailureKind.HttpStatus &&
                         (refused.Problem?.Code ?? refused.UiProblem?.Code) is { } code && isRefusal(refused.StatusCode, code)),
-                NativeHttpOperationCanceledException cancelled => new(cancelled.CorrelationId, cancelled.SendStarted, false),
                 OperationCanceledException => new(correlationId, Volatile.Read(ref dispatched) != 0, false),
                 _ => null
             }, afterCapture);
