@@ -41,7 +41,7 @@ foreach (var path in assetPaths)
 foreach (var missing in new Func<Task>[] { () => dashboard.GetAssetAsync("assets/missing-witness.js"), () => dashboard.HeadAssetAsync("assets/missing-witness.js") })
 {
     try { await missing(); throw new InvalidOperationException("A missing asset was served."); }
-    catch (NativeHttpException error) when (error.Kind == NativeHttpFailureKind.HttpStatus && error.StatusCode == HttpStatusCode.NotFound && error.UiProblem is null) { }
+    catch (NativeHttpException error) when (error.Kind == NativeHttpFailureKind.HttpStatus && error.StatusCode == HttpStatusCode.NotFound && error.Problem is null) { }
 }
 
 // Bootstrap: the complete native catalog with this target's workspace identity.
@@ -156,7 +156,7 @@ var profileName = new RunProfileName("witness");
 // Native reports a missing profile as a store error, not 404; its HEAD keeps only the status.
 var missingProfile = await Problem(() => dashboard.GetProfileAsync(profileName), HttpStatusCode.InternalServerError, "profile_store_error");
 try { await dashboard.HeadProfileAsync(profileName); throw new InvalidOperationException("HEAD found a missing profile."); }
-catch (NativeHttpException error) when (error.StatusCode == HttpStatusCode.InternalServerError && error.UiProblem is null) { }
+catch (NativeHttpException error) when (error.StatusCode == HttpStatusCode.InternalServerError && error.Problem is null) { }
 var workspace = bootstrap.Workspace.Id;
 var resized = NativeJson.DeserializeUtf8<RuntimePlan>(System.Text.Encoding.UTF8.GetBytes(
     Wire(runtime).ToJsonString().Replace("\"size\":\"small\"", "\"size\":\"medium\"")));
@@ -166,11 +166,11 @@ DashboardProfileSaveRequest Save(RuntimePlan plan, string? expectedRevision)
 object Attempt(NativeAttempt<DashboardProfile> attempt) => new
 {
     outcome = attempt.Outcome.ToString(), attempt.Response?.Revision,
-    problem = (attempt.Failure as NativeHttpException)?.UiProblem is { } p ? new { p.Code, p.Message } : null
+    problem = (attempt.Failure as NativeHttpException)?.Problem is NativeUiProblem { Body: var p } ? new { p.Code, p.Message } : null
 };
 void Conflict(NativeAttempt<DashboardProfile> attempt, string code, string message)
     => Require(attempt is { Outcome: NativeAttemptOutcome.Rejected, Failure: NativeHttpException { StatusCode: HttpStatusCode.Conflict } refused } &&
-        refused.UiProblem?.Code == code, message);
+        refused.Problem is NativeUiProblem { Code: var received } && received == code, message);
 
 // Create without a revision, then read it back with the same revision.
 var created = await dashboard.SaveProfileAsync(Save(runtime, null), workspace);
@@ -201,7 +201,7 @@ Conflict(raced.Single(a => a.Outcome != NativeAttemptOutcome.Acknowledged), "pro
 var foreignWorkspace = await dashboard.SaveProfileAsync(Save(resized, winner.Revision), "0195af77-1000-7000-8000-00000000abcd");
 Conflict(foreignWorkspace, "workspace_changed", "A foreign workspace saved.");
 var inadmissible = await dashboard.SaveProfileAsync(Save(unbound, winner.Revision), workspace);
-Require(inadmissible is { Outcome: NativeAttemptOutcome.Rejected, Failure: NativeHttpException { StatusCode: HttpStatusCode.UnprocessableEntity, UiProblem.Code: "invalid_profile" } },
+Require(inadmissible is { Outcome: NativeAttemptOutcome.Rejected, Failure: NativeHttpException { StatusCode: HttpStatusCode.UnprocessableEntity, Problem: NativeUiProblem { Code: "invalid_profile" } } },
     "An inadmissible profile was not rejected.");
 var final = await dashboard.GetProfileAsync(profileName);
 var finalList = await dashboard.ListProfilesAsync();
@@ -239,8 +239,9 @@ Console.WriteLine(JsonSerializer.Serialize(new
 static async Task<object> Problem(Func<Task> call, HttpStatusCode status, string code)
 {
     try { await call(); }
-    catch (NativeHttpException error) when (error.Kind == NativeHttpFailureKind.HttpStatus && error.StatusCode == status && error.UiProblem?.Code == code)
-    { return new { status = (int)status, error.UiProblem.Code, error.UiProblem.Message }; }
+    catch (NativeHttpException error) when (error is { Kind: NativeHttpFailureKind.HttpStatus, Problem: NativeUiProblem } &&
+        error.StatusCode == status && error.Problem.Code == code)
+    { var problem = ((NativeUiProblem)error.Problem).Body; return new { status = (int)status, problem.Code, problem.Message }; }
     throw new InvalidOperationException($"Expected native {code}.");
 }
 

@@ -32,7 +32,7 @@ internal sealed record HttpResponsePolicy
     public HttpProblemDialect Problems { get; init; }
     /// <summary>A native refusal-body bound below the shared diagnostic ceiling.</summary>
     public int? ProblemBytes { get; init; }
-    /// <summary>Refusals carry the closed native run-history code in their dialect's problem.</summary>
+    /// <summary>Refusals carry the closed native run-history code, read in either dialect as a <see cref="NativeRunHistoryProblem"/>.</summary>
     public bool HistoryCodes { get; init; }
     public bool RequiresOk { get; init; }
 
@@ -50,21 +50,20 @@ internal sealed record HttpResponsePolicy
     internal bool Admits(HttpStatusCode status) => !RequiresOk || status == HttpStatusCode.OK;
 
     /// <summary>The validated problem in this dialect; an invalid one leaves the status as the only observed refusal.</summary>
-    internal HttpRefusal ReadRefusal(byte[] bytes)
+    internal NativeHttpProblem? ReadRefusal(byte[] bytes)
     {
         try
         {
-            return Problems == HttpProblemDialect.UiRouter ? new(UiProblem: NativeJson.DeserializeUtf8<UiProblem>(bytes))
-                : Problems == HttpProblemDialect.OAuth ? new(DeviceTokenError: NativeJson.DeserializeUtf8<OAuthErrorResponse>(bytes).Known)
-                : new(Problem: NativeJson.DeserializeUtf8<TargetHttpProblem>(bytes));
+            return Problems switch
+            {
+                HttpProblemDialect.UiRouter when HistoryCodes => new NativeRunHistoryProblem(NativeJson.DeserializeUtf8<UiProblem>(bytes)),
+                HttpProblemDialect.UiRouter => new NativeUiProblem(NativeJson.DeserializeUtf8<UiProblem>(bytes)),
+                HttpProblemDialect.OAuth => NativeJson.DeserializeUtf8<OAuthErrorResponse>(bytes) is { Known: { } error } body
+                    ? new NativeDeviceTokenProblem(body.Error, error) : null,
+                _ when HistoryCodes => new NativeRunHistoryProblem(NativeJson.DeserializeUtf8<TargetHttpProblem>(bytes)),
+                _ => new NativeTargetProblem(NativeJson.DeserializeUtf8<TargetHttpProblem>(bytes))
+            };
         }
-        catch (JsonException) { return default; }
+        catch (JsonException) { return null; }
     }
-
-    internal NativeHttpException Failure(OperationFailure failure, HttpRefusal refusal, HttpStatusCode? receivedStatus)
-        => new(failure, refusal.Problem, receivedStatus, refusal.UiProblem,
-            HistoryCodes ? RunHistoryProblems.Parse(refusal.UiProblem?.Code ?? refusal.Problem?.Code) : null, refusal.DeviceTokenError);
 }
-
-internal readonly record struct HttpRefusal(TargetHttpProblem? Problem = null, UiProblem? UiProblem = null,
-    DeviceTokenError? DeviceTokenError = null);

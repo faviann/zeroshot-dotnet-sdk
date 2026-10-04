@@ -35,3 +35,20 @@ Zeroshot.IRunWaitFailure.Run.get -> Zeroshot.Run!
 *REMOVED*Zeroshot.Native.Contracts.WatchEvent.WatchEvent() -> void
 *REMOVED*Zeroshot.Native.Contracts.WorkerOutcome.WorkerOutcome() -> void
 *REMOVED*Zeroshot.Native.DashboardRunEvent.DashboardRunEvent() -> void
+*REMOVED*Zeroshot.Native.NativeHttpException.DeviceTokenError.get -> Zeroshot.Native.Contracts.DeviceTokenError?
+*REMOVED*Zeroshot.Native.NativeHttpException.HistoryProblem.get -> Zeroshot.Native.Contracts.RunHistoryProblemCode?
+*REMOVED*Zeroshot.Native.NativeHttpException.Problem.get -> Zeroshot.Native.Contracts.TargetHttpProblem?
+*REMOVED*Zeroshot.Native.NativeHttpException.UiProblem.get -> Zeroshot.Native.Contracts.UiProblem?
+Zeroshot.Native.NativeDeviceTokenProblem
+Zeroshot.Native.NativeDeviceTokenProblem.Error.get -> Zeroshot.Native.Contracts.DeviceTokenError
+Zeroshot.Native.NativeHttpException.Problem.get -> Zeroshot.Native.NativeHttpProblem?
+Zeroshot.Native.NativeHttpProblem
+Zeroshot.Native.NativeHttpProblem.Code.get -> string!
+Zeroshot.Native.NativeRunHistoryProblem
+Zeroshot.Native.NativeRunHistoryProblem.Category.get -> Zeroshot.Native.Contracts.RunHistoryProblemCode?
+Zeroshot.Native.NativeRunHistoryProblem.Details.get -> System.Text.Json.JsonElement?
+Zeroshot.Native.NativeRunHistoryProblem.Message.get -> string!
+Zeroshot.Native.NativeTargetProblem
+Zeroshot.Native.NativeTargetProblem.Body.get -> Zeroshot.Native.Contracts.TargetHttpProblem!
+Zeroshot.Native.NativeUiProblem
+Zeroshot.Native.NativeUiProblem.Body.get -> Zeroshot.Native.Contracts.UiProblem!

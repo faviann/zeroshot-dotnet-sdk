@@ -186,8 +186,8 @@ public sealed class HttpOAuthTests
             using var client = ClientFor(handler);
             var attempt = await client.OAuth.ExchangeDeviceTokenAsync(Discovery(), Authorization, DeviceToken);
             Check(attempt.Outcome == NativeAttemptOutcome.Rejected && attempt.Failure is NativeHttpException
-                { Kind: NativeHttpFailureKind.HttpStatus, StatusCode: HttpStatusCode.BadRequest, Problem: null } failure &&
-                failure.DeviceTokenError == code, error);
+                { Kind: NativeHttpFailureKind.HttpStatus, StatusCode: HttpStatusCode.BadRequest } failure &&
+                failure.Problem is NativeDeviceTokenProblem problem && problem.Error == code && problem.Code == error, error);
         }
         foreach (var body in new[]
         {
@@ -199,7 +199,7 @@ public sealed class HttpOAuthTests
             using var client = ClientFor(handler);
             var attempt = await client.OAuth.ExchangeDeviceTokenAsync(Discovery(), Authorization, DeviceToken);
             Check(attempt.Outcome == NativeAttemptOutcome.Unknown &&
-                attempt.Failure is NativeHttpException { DeviceTokenError: null, Problem: null }, body);
+                attempt.Failure is NativeHttpException { Problem: null }, body);
         }
 
         using var lost = new Handler((_, _) => throw new HttpRequestException("lost"));

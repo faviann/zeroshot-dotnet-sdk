@@ -52,9 +52,10 @@ var missing = new[]
     await Refused(native.Private.GetHistoryDefinitionAsync(unknown, operatorAuthority, token)),
     await Refused(native.Private.GetHistoryPageAsync(unknown, operatorAuthority, cancellationToken: token))
 };
-Check(missing.All(error => error is { StatusCode: System.Net.HttpStatusCode.NotFound, HistoryProblem: RunHistoryProblemCode.RunNotFound, Problem.Code: "run_not_found" }), "unknown run history");
+Check(missing.All(error => error is { StatusCode: System.Net.HttpStatusCode.NotFound,
+    Problem: NativeRunHistoryProblem { Category: RunHistoryProblemCode.RunNotFound, Code: "run_not_found" } }), "unknown run history");
 var ahead = await Refused(native.Private.GetHistoryPageAsync(runId, operatorAuthority, new Cursor("v2:999999"), token));
-Check(ahead is { StatusCode: System.Net.HttpStatusCode.BadRequest, HistoryProblem: RunHistoryProblemCode.InvalidCursor }, "cursor ahead");
+Check(ahead is { StatusCode: System.Net.HttpStatusCode.BadRequest, Problem: NativeRunHistoryProblem { Category: RunHistoryProblemCode.InvalidCursor } }, "cursor ahead");
 var wrong = new TargetControlCredentials(TargetAuthentication.PrivateCapability, Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32)));
 var unauthorized = new[]
 {
@@ -62,7 +63,8 @@ var unauthorized = new[]
     await Refused(native.Private.GetHistoryDefinitionAsync(runId, wrong, token)),
     await Refused(native.Private.GetHistoryPageAsync(runId, wrong, cancellationToken: token))
 };
-Check(unauthorized.All(error => error is { StatusCode: System.Net.HttpStatusCode.Unauthorized, Problem.Code: "request.unauthorized", HistoryProblem: null }), "wrong capability");
+Check(unauthorized.All(error => error is { StatusCode: System.Net.HttpStatusCode.Unauthorized,
+    Problem: { Code: "request.unauthorized" } and not NativeRunHistoryProblem { Category: not null } }), "wrong capability");
 
 // A private OECP session with the same capability: native issues a capability-bearing session, and the
 // run is inspectable over its WebSocket. No hosted authority or other private operation is implied.
