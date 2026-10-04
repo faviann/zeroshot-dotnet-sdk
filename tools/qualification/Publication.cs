@@ -24,12 +24,12 @@ internal static class Publication
         var candidate = CandidateFiles.Load(Path.Combine(artifacts, "candidate"));
         var qualificationPath = Path.Combine(artifacts, "qualification", "qualification.json");
         if (!File.Exists(qualificationPath)) throw new QualificationException($"No qualification evidence at {qualificationPath}.");
-        var qualification = JsonNode.Parse(File.ReadAllText(qualificationPath))!.AsObject();
-        if (qualification["qualified"]?.GetValue<bool>() != true) throw new QualificationException("The candidate was not qualified.");
-        if (!JsonNode.DeepEquals(qualification["candidate"], candidate.Manifest))
+        var qualification = JsonFile.Read<QualificationManifest>(qualificationPath);
+        if (!qualification.Qualified) throw new QualificationException("The candidate was not qualified.");
+        if (!JsonFile.Same(qualification.Candidate, candidate.Manifest))
             throw new QualificationException("The qualification evidence names another candidate than the downloaded one.");
-        if (tag != "v" + candidate.Version || (string?)candidate.Manifest["releaseTag"] != tag)
-            throw new QualificationException($"Tag {tag} is not the candidate's release tag (version {candidate.Version}, releaseTag {candidate.Manifest["releaseTag"]}).");
+        if (tag != "v" + candidate.Version || candidate.Manifest.ReleaseTag != tag)
+            throw new QualificationException($"Tag {tag} is not the candidate's release tag (version {candidate.Version}, releaseTag {candidate.Manifest.ReleaseTag}).");
         if (Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any()) throw new QualificationException($"{output} must be empty.");
         Directory.CreateDirectory(output);
         var selected = Path.Combine(output, Path.GetFileName(candidate.ClientFile));
@@ -59,35 +59,19 @@ internal static class Publication
         if (feed != Feed) failures.Add($"Restored from {feed}, not the publication feed {Feed}.");
 
         var package = PackageRecord(token, failures);
-        var restore = new JsonObject();
+        var restore = new RestoreSteps();
         var work = Path.Combine(Path.GetTempPath(), "zeroshot-publication-" + Guid.NewGuid().ToString("N"));
         try { Restore(candidate, feed, user, token, work, restore, failures); }
         catch (QualificationException failure) { failures.Add(failure.Message); }
 
-        var manifest = new JsonObject
-        {
-            ["schema"] = "zeroshot-dotnet/publication/v1",
-            ["verified"] = failures.Count == 0,
-            ["packageId"] = "Zeroshot.Client",
-            ["version"] = version,
-            ["sourceCommit"] = candidate.Commit,
-            ["feed"] = feed,
-            ["expectedSha256"] = candidate.ClientSha256,
-            ["package"] = package,
-            ["restore"] = restore,
-            ["workflowRun"] = Environment.GetEnvironmentVariable("GITHUB_RUN_ID") is { } run
-                ? $"{Environment.GetEnvironmentVariable("GITHUB_SERVER_URL")}/{Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")}/actions/runs/{run}" : null,
-            ["checkedAt"] = DateTimeOffset.UtcNow.ToString("O"),
-            ["failures"] = new JsonArray([.. failures.Select(failure => (JsonNode?)failure)]),
-        };
-        Tools.WriteJson(Path.Combine(output, "publication.json"), manifest);
-        Console.WriteLine(manifest.ToJsonString(Tools.Indented));
+        JsonFile.Write(Path.Combine(output, "publication.json"), new PublicationManifest(failures.Count == 0, "Zeroshot.Client", version, candidate.Commit, feed,
+            candidate.ClientSha256, package, restore, Tools.WorkflowRun, DateTimeOffset.UtcNow.ToString("O"), failures));
         foreach (var failure in failures) Console.Error.WriteLine($"Refused: {failure}");
         return failures.Count == 0 ? 0 : 1;
     }
 
     /// <summary>The registry's own record of the package: its visibility and the repository it is linked to.</summary>
-    private static JsonObject PackageRecord(string token, List<string> failures)
+    private static object PackageRecord(string token, List<string> failures)
     {
         using var http = new HttpClient();
         http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -99,7 +83,7 @@ internal static class Publication
         if (!response.IsSuccessStatusCode)
         {
             failures.Add($"GET {url} returned {(int)response.StatusCode}: {body.Trim()}");
-            return new JsonObject { ["status"] = (int)response.StatusCode };
+            return new RegistryRefusal((int)response.StatusCode);
         }
         var record = JsonNode.Parse(body)!.AsObject();
         var visibility = (string?)record["visibility"];
@@ -107,14 +91,14 @@ internal static class Publication
         if (visibility != "public")
             failures.Add($"The package is {visibility}, not public: the owner changes its visibility in the package settings, then re-runs this job.");
         if (repository != RepositoryName) failures.Add($"The package is linked to {repository ?? "no repository"}, not {RepositoryName}.");
-        return new JsonObject { ["visibility"] = visibility, ["repository"] = repository, ["htmlUrl"] = record["html_url"]?.DeepClone() };
+        return new RegistryPackage(visibility, repository, (string?)record["html_url"]);
     }
 
     /// <summary>
     /// A fresh consumer outside the repository: package source mapping takes Zeroshot packages only from the feed, the
     /// feed credential comes from the environment, and the package and HTTP caches start empty.
     /// </summary>
-    private static void Restore(CandidateFiles candidate, string feed, string user, string token, string work, JsonObject restore, List<string> failures)
+    private static void Restore(CandidateFiles candidate, string feed, string user, string token, string work, RestoreSteps restore, List<string> failures)
     {
         var version = candidate.Version;
         var consumer = Directory.CreateDirectory(Path.Combine(work, "consumer")).FullName;
@@ -146,15 +130,15 @@ internal static class Publication
             ["NuGetPackageSourceCredentials_github"] = $"Username={user};Password={token}",
         };
         var file = Path.Combine(consumer, "ContractsConsumer.csproj");
-        foreach (var (step, arguments) in new (string, string[])[]
+        foreach (var (step, arguments, record) in new (string, string[], Action<bool>)[]
         {
-            ("restore", ["restore", file]),
-            ("build", ["build", file, "-c", "Release", "--no-restore"]),
-            ("run", ["run", "--project", file, "-c", "Release", "--no-build"]),
+            ("restore", ["restore", file], ran => restore.Restore = ran),
+            ("build", ["build", file, "-c", "Release", "--no-restore"], ran => restore.Build = ran),
+            ("run", ["run", "--project", file, "-c", "Release", "--no-build"], ran => restore.Run = ran),
         })
         {
             var (exitCode, _) = Tools.Run(Tools.DotnetHost, arguments, consumer, environment);
-            restore[step] = exitCode == 0;
+            record(exitCode == 0);
             if (exitCode != 0) throw new QualificationException($"The fresh consumer's {step} exited {exitCode}.");
         }
 
@@ -164,8 +148,8 @@ internal static class Publication
         if (!File.Exists(cached) || !File.Exists(metadata)) throw new QualificationException($"The isolated cache holds no Zeroshot.Client {version}.");
         var served = Tools.Sha256(cached);
         var source = (string?)JsonNode.Parse(File.ReadAllText(metadata))!["source"];
-        restore["servedSha256"] = served;
-        restore["source"] = source;
+        restore.ServedSha256 = served;
+        restore.Source = source;
         if (served != candidate.ClientSha256) failures.Add($"The feed served {served}, not the qualified {candidate.ClientSha256}.");
         if (source != feed) failures.Add($"Zeroshot.Client was restored from {source}, not {feed}.");
     }
