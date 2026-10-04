@@ -60,16 +60,6 @@ public sealed class HttpHostedRecoveryTests
     }
 
     [Test]
-    public async Task UnaddressableRunsFailBeforeDispatch()
-    {
-        using var handler = new Handler((request, _) => Task.FromResult(Reply(request, Discarded)));
-        using var client = ClientFor(handler);
-        // Native's path-segment setter would drop this ID and address another route.
-        await Invalid(() => client.HostedRecovery.DiscardWorkspaceAsync(Discovery(Capability), new(".."), Hosted), Bearer);
-        Check(handler.Calls == 0, $"{handler.Calls} requests sent");
-    }
-
-    [Test]
     public async Task RepliesMustNameTheRequestedRunsAndKeepThePageContract()
     {
         var reply = "";

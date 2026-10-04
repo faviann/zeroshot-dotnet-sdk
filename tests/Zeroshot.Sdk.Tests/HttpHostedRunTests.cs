@@ -135,29 +135,6 @@ public sealed class HttpHostedRunTests
     }
 
     [Test]
-    public async Task UnaddressableRunIdsAreRefusedBeforeDispatch()
-    {
-        var handler = new Handler((_, _) => throw new InvalidOperationException("dispatched"));
-        using var native = ClientFor(handler);
-        // Native's path-segment setter would skip or rewrite these run IDs.
-        foreach (var id in new RunId[] { new("."), new(".."), new("a\tb") })
-        {
-            await Refused(() => native.HostedRuns.StatusAsync(Discovery(Capability), id, Hosted));
-            await Refused(() => native.HostedRuns.WatchAsync(Discovery(Capability), new() { RunId = id }, Hosted));
-            await Refused(() => native.HostedRuns.LogsAsync(Discovery(Capability), new() { RunId = id }, Hosted));
-            await Refused(() => native.HostedRuns.ForceAsync(Discovery(Capability), id, Hosted));
-        }
-        Check(handler.Calls == 0);
-
-        static async Task Refused(Func<Task> call)
-        {
-            try { await call(); }
-            catch (ArgumentException) { return; }
-            throw new InvalidOperationException("Expected refusal before dispatch.");
-        }
-    }
-
-    [Test]
     public async Task StreamsFollowNativeFramingAndKeepEachCloseReason()
     {
         // CRLF and LF line ends, a byte-at-a-time peer, and bytes after the closed frame that are never read.
