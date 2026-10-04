@@ -2,13 +2,17 @@
 // (native_v2_observability/history/{wire,status,control}.rs, v2_run_ledger.rs). Native publishes
 // no schema for them; nested graph/runtime/source/result/outcome values use the pinned schemas.
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Zeroshot.Native.Contracts;
 
 /// <summary>Source-backed run-history records. Required nullable fields are always present on the wire.</summary>
-public abstract record HistoryContract : NativeContract;
+public abstract record HistoryContract : NativeContract
+{
+    private protected HistoryContract() { }
+}
 
 public enum RunHistoryProblemCode
 {
@@ -90,7 +94,10 @@ public enum ExecutionVoidReason
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "status")]
 [JsonDerivedType(typeof(SucceededHistorySynopsis), "succeeded")]
 [JsonDerivedType(typeof(FailedHistorySynopsis), "failed")]
-public abstract record RunHistoryTerminalSynopsis : HistoryContract;
+public abstract record RunHistoryTerminalSynopsis : HistoryContract
+{
+    private protected RunHistoryTerminalSynopsis() { }
+}
 
 public sealed record SucceededHistorySynopsis : RunHistoryTerminalSynopsis;
 
@@ -338,7 +345,10 @@ public sealed record HistoryEventRecord : HistoryContract
 [JsonDerivedType(typeof(TokenUsageObservedHistoryEvent), "token_usage_observed")]
 [JsonDerivedType(typeof(ForceStopRequestedHistoryEvent), "force_stop_requested")]
 [JsonDerivedType(typeof(TerminalHistoryEvent), "terminal")]
-public abstract record HistoryEvent : HistoryContract;
+public abstract record HistoryEvent : HistoryContract
+{
+    private protected HistoryEvent() { }
+}
 
 /// <summary>Imported prerequisite work, serialized as the native durable record with numeric identities.</summary>
 public sealed record PriorExecutionHistoryEvent : HistoryEvent
@@ -476,7 +486,10 @@ public sealed record DurableExecution : HistoryContract
 
 /// <summary>Externally tagged: <c>"Active"</c>, <c>{"Settled":{...}}</c> or <c>{"Voided":{...}}</c>.</summary>
 [JsonConverter(typeof(DurableExecutionStateConverter))]
-public abstract record DurableExecutionState : HistoryContract;
+public abstract record DurableExecutionState : HistoryContract
+{
+    private protected DurableExecutionState() { }
+}
 
 public sealed record ActiveExecutionState : DurableExecutionState;
 
@@ -532,7 +545,7 @@ internal sealed class DurableExecutionStateConverter : JsonConverter<DurableExec
             case VoidedExecutionState voided:
                 writer.WriteStartObject(); writer.WritePropertyName("Voided");
                 JsonSerializer.Serialize(writer, voided, options); writer.WriteEndObject(); return;
-            default: throw new JsonException();
+            default: throw new UnreachableException();
         }
     }
 }

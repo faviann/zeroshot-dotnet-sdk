@@ -7,6 +7,7 @@ namespace Zeroshot.Native.Contracts;
 /// <summary>Caller-owned wire data. Use NativeJson for validated serialization.</summary>
 public abstract record NativeContract
 {
+    private protected NativeContract() { }
     // Record-generated formatting would recursively expose authored inputs, instructions and scripts.
     public sealed override string ToString() => GetType().Name;
 

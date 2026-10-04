@@ -7,7 +7,10 @@ using System.Text.Json.Serialization;
 namespace Zeroshot.Native.Contracts;
 
 /// <summary>Source-backed target HTTP shapes absent from the generated OECP schema.</summary>
-public abstract record TargetHttpContract : NativeContract;
+public abstract record TargetHttpContract : NativeContract
+{
+    private protected TargetHttpContract() { }
+}
 
 public sealed record TargetOecpSessionRequest : TargetHttpContract
 {

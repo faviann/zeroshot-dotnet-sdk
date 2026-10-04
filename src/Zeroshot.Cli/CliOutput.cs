@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -157,7 +158,8 @@ internal sealed class CliOutput(TextWriter stdout, TextWriter stderr, bool json)
         {
             OutputAgentAttachEvent output => output.Text.Value,
             SettledAgentAttachEvent => $"{execution} settled",
-            _ => $"{execution} is working",
+            WorkingAgentAttachEvent => $"{execution} is working",
+            _ => throw new UnreachableException(),
         });
     }
 
@@ -210,7 +212,8 @@ internal sealed class CliOutput(TextWriter stdout, TextWriter stderr, bool json)
         AdmittedRunStatus => "admitted",
         RunningRunStatus => "running",
         StoppingRunStatus => "stopping",
-        _ => "finished",
+        FinishedRunStatus => "finished",
+        _ => throw new UnreachableException(),
     };
 
     /// <summary>Generic output, native failure reason and metadata, and where the terminal result was observed.</summary>

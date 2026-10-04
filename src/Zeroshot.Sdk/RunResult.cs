@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Zeroshot.Native.Contracts;
 
@@ -46,7 +47,7 @@ public sealed class RunResult
         {
             case SucceededTerminalResult succeeded: IsSuccess = true; Output = succeeded.Output; break;
             case FailedTerminalResult failed: FailureReason = failed.Reason; break;
-            default: throw new ArgumentException("Unknown terminal result.", nameof(result));
+            default: throw new UnreachableException();
         }
     }
 

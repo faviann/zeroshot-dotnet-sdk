@@ -139,7 +139,10 @@ public enum StopMode
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "status")]
 [JsonDerivedType(typeof(SucceededTerminalResult), "succeeded")]
 [JsonDerivedType(typeof(FailedTerminalResult), "failed")]
-public abstract record TerminalResult : NativeContract;
+public abstract record TerminalResult : NativeContract
+{
+    private protected TerminalResult() { }
+}
 
 [WireContract("TerminalResult")]
 public sealed record SucceededTerminalResult : TerminalResult
@@ -237,7 +240,10 @@ public sealed record RunForceResult : NativeContract
 [JsonDerivedType(typeof(RunningRunStatus), "running")]
 [JsonDerivedType(typeof(StoppingRunStatus), "stopping")]
 [JsonDerivedType(typeof(FinishedRunStatus), "finished")]
-public abstract record RunStatus : NativeContract;
+public abstract record RunStatus : NativeContract
+{
+    private protected RunStatus() { }
+}
 
 [WireContract("RunStatus")]
 public sealed record AdmittedRunStatus : RunStatus;

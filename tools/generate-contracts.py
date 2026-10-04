@@ -77,7 +77,7 @@ for name,s in defs.items():
    vnames.append((pascal(label)+suffix,label,v))
   lines.extend(['[WireContract("'+name+'")]', '[JsonPolymorphic(TypeDiscriminatorPropertyName = "'+tag+'")]'])
   for vn,label,v in vnames:lines.append('[JsonDerivedType(typeof('+vn+'), "'+label+'")]')
-  lines.extend(['public abstract record '+name+' : NativeContract;', ''])
+  lines.extend(['public abstract record '+name+' : NativeContract', '{', '    private protected '+name+'() { }', '}', ''])
   for vn,label,v in vnames:model(vn,v,name,name,tag)
  elif s.get('type')=='object':model(name,s)
  else:raise ValueError((name,s))

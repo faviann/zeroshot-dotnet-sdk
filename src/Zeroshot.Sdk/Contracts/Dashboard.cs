@@ -8,7 +8,10 @@ using System.Text.Json.Serialization;
 namespace Zeroshot.Native.Contracts;
 
 /// <summary>Native browser-dashboard data. Drafts are editor state, not admitted or stored profiles.</summary>
-public abstract record DashboardContract : NativeContract;
+public abstract record DashboardContract : NativeContract
+{
+    private protected DashboardContract() { }
+}
 
 /// <summary>`GET /ui/api/bootstrap`: native catalog plus the host's workspace identity.</summary>
 public sealed record DashboardBootstrap : DashboardContract
@@ -59,6 +62,7 @@ public sealed record DashboardTemplate : DashboardContract
 [JsonDerivedType(typeof(DashboardGitDeliveryWorker), "git_delivery")]
 public abstract record DashboardWorker : DashboardContract
 {
+    private protected DashboardWorker() { }
     [JsonPropertyName("id")]
     public required string Id { get; init; }
     [JsonPropertyName("label")]
@@ -168,7 +172,10 @@ public sealed record DashboardAuthoringRequest : DashboardContract
 [JsonDerivedType(typeof(FailureReasonAuthoringAction), "failure_reason")]
 [JsonDerivedType(typeof(CompleteAuthoringAction), "complete")]
 [JsonDerivedType(typeof(ProtectAuthoringAction), "protect")]
-public abstract record DashboardAuthoringAction : DashboardContract;
+public abstract record DashboardAuthoringAction : DashboardContract
+{
+    private protected DashboardAuthoringAction() { }
+}
 
 public sealed record FailureReasonAuthoringAction : DashboardAuthoringAction
 {
@@ -217,7 +224,10 @@ public sealed record DashboardDataRequest : DashboardContract
 [JsonDerivedType(typeof(MapCollectionDataAction), "map_collection")]
 [JsonDerivedType(typeof(RunInputFieldDataAction), "run_input_field")]
 [JsonDerivedType(typeof(RemoveRunInputDataAction), "remove_run_input")]
-public abstract record DashboardDataAction : DashboardContract;
+public abstract record DashboardDataAction : DashboardContract
+{
+    private protected DashboardDataAction() { }
+}
 
 public sealed record DashboardInputTarget : DashboardContract
 {
@@ -277,6 +287,7 @@ public sealed record RemoveRunInputDataAction : DashboardDataAction
 [JsonDerivedType(typeof(LoopInputSource), "loop_input")]
 public abstract record DashboardDataSource : DashboardContract
 {
+    private protected DashboardDataSource() { }
     [JsonPropertyName("path")]
     public required ImmutableArray<FieldName> Path { get; init; }
 }

@@ -290,7 +290,10 @@ public sealed record EventNotification : NativeContract
 [JsonDerivedType(typeof(BookmarkWatchEvent), "bookmark")]
 [JsonDerivedType(typeof(FaultWatchEvent), "fault")]
 [JsonDerivedType(typeof(FinishedWatchEvent), "finished")]
-public abstract record WatchEvent : NativeContract;
+public abstract record WatchEvent : NativeContract
+{
+    private protected WatchEvent() { }
+}
 
 public sealed record PhaseWatchEvent : WatchEvent
 {

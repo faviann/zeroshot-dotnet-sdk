@@ -6,7 +6,10 @@ using System.Text.Json.Serialization;
 namespace Zeroshot.Native.Contracts;
 
 /// <summary>Native discovery wire data; descriptors alone do not establish endpoint support.</summary>
-public abstract record DiscoveryContract : NativeContract;
+public abstract record DiscoveryContract : NativeContract
+{
+    private protected DiscoveryContract() { }
+}
 
 [JsonConverter(typeof(TargetAuthenticationConverter))]
 public enum TargetAuthentication { None, HostedOauth, PrivateCapability }

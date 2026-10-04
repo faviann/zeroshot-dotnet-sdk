@@ -1,6 +1,7 @@
 // Hosted run lifecycle wire shapes from the pinned native source
 // (openengine-cluster-protocol native_v2_hosted.rs).
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -11,7 +12,10 @@ namespace Zeroshot.Native.Contracts;
 /// target <see cref="RunStatus"/>. Neither queued nor stopping is terminal.
 /// </summary>
 [JsonConverter(typeof(HostedRunStatusConverter))]
-public abstract record HostedRunStatus : TargetHttpContract;
+public abstract record HostedRunStatus : TargetHttpContract
+{
+    private protected HostedRunStatus() { }
+}
 
 /// <summary>The host owns the run before its target exists.</summary>
 public sealed record QueuedHostedRunStatus : HostedRunStatus;
@@ -89,7 +93,7 @@ internal sealed class HostedRunStatusConverter : JsonConverter<HostedRunStatus>
             case TargetHostedRunStatus target:
                 JsonSerializer.Serialize(writer, target.Status ?? throw new JsonException(), options);
                 break;
-            default: throw new JsonException();
+            default: throw new UnreachableException();
         }
     }
 }
