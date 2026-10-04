@@ -17,6 +17,7 @@ internal sealed class ObservationQueue<T, TPosition>(ObservationDelivery owner) 
     private bool discarded;
     private bool readerClaimed;
     private Exception? error;
+    private NativeSubscriptionOrigin? discardOrigin;
     private TPosition? receivedPosition;
     private TPosition? bufferedPosition;
     private TPosition? deliveredPosition;
@@ -24,7 +25,8 @@ internal sealed class ObservationQueue<T, TPosition>(ObservationDelivery owner) 
     // One bounded signal, no callbacks or transport work run by the queue. A binding
     // observes it, stops its producer and calls Complete after its cleanup settles.
     internal Task StopRequested => stop.Task;
-    internal Exception? StopFailure { get { lock (owner.Gate) return error; } }
+    // Cancelled or Disposed once discarded; a discard is final, so the first one wins.
+    internal NativeSubscriptionOrigin? DiscardOrigin { get { lock (owner.Gate) return discardOrigin; } }
     internal TPosition? LastReceivedPosition { get { lock (owner.Gate) return receivedPosition; } }
     internal TPosition? LastBufferedPosition { get { lock (owner.Gate) return bufferedPosition; } }
     internal TPosition? LastDeliveredPosition { get { lock (owner.Gate) return deliveredPosition; } }
@@ -34,7 +36,7 @@ internal sealed class ObservationQueue<T, TPosition>(ObservationDelivery owner) 
     internal void RegisterCancellation(CancellationToken token)
     {
         // Registration can invoke immediately; never register while holding Gate.
-        var registration = token.UnsafeRegister(_ => Discard(new OperationCanceledException(token)), null);
+        var registration = token.UnsafeRegister(_ => Discard(NativeSubscriptionOrigin.Cancelled, new OperationCanceledException(token)), null);
         bool unregister;
         lock (owner.Gate)
         {
@@ -110,7 +112,7 @@ internal sealed class ObservationQueue<T, TPosition>(ObservationDelivery owner) 
             readerClaimed = true;
         }
         // Remains registered while a consumer is processing a record or abandoned.
-        var registration = cancellationToken.UnsafeRegister(_ => Discard(new OperationCanceledException(cancellationToken)), null);
+        var registration = cancellationToken.UnsafeRegister(_ => Discard(NativeSubscriptionOrigin.Cancelled, new OperationCanceledException(cancellationToken)), null);
         try
         {
             while (true)
@@ -149,14 +151,15 @@ internal sealed class ObservationQueue<T, TPosition>(ObservationDelivery owner) 
         }
     }
 
-    public void Dispose() => Discard(new ObjectDisposedException("Native observation"));
+    public void Dispose() => Discard(NativeSubscriptionOrigin.Disposed, new ObjectDisposedException("Native observation"));
 
-    private void Discard(Exception failure)
+    private void Discard(NativeSubscriptionOrigin origin, Exception failure)
     {
         lock (owner.Gate)
         {
             if (discarded) return;
             discarded = true;
+            discardOrigin = origin;
             error = failure;
             owner.QueuedBytes -= queuedBytes;
             queuedBytes = 0;

@@ -91,13 +91,13 @@ internal sealed class ObservationLifecycle<T>(ObservationQueue<T, Cursor> queue)
         lock (gate)
         {
             if (outcome is not null) return;
-            if (queue.StopFailure is OperationCanceledException) outcome = new() { Origin = NativeSubscriptionOrigin.Cancelled };
-            else if (failure is null || queue.StopFailure is ObjectDisposedException)
+            var local = queue.DiscardOrigin;
+            if (local is null && failure is not null) Settle(NativeSubscriptionOrigin.UnexpectedDisconnect, new(failure.Value));
+            else
             {
-                outcome = new() { Origin = NativeSubscriptionOrigin.Disposed };
-                queue.Dispose();
+                outcome = new() { Origin = local ?? NativeSubscriptionOrigin.Disposed };
+                queue.Dispose(); // No-op once discarded.
             }
-            else Settle(NativeSubscriptionOrigin.UnexpectedDisconnect, new(failure.Value));
         }
     }
 
@@ -153,8 +153,7 @@ internal sealed class ObservationLifecycle<T>(ObservationQueue<T, Cursor> queue)
         NativeSubscriptionCompletion result;
         lock (gate)
         {
-            outcome ??= new() { Origin = queue.StopFailure is OperationCanceledException
-                ? NativeSubscriptionOrigin.Cancelled : NativeSubscriptionOrigin.Disposed };
+            outcome ??= new() { Origin = queue.DiscardOrigin ?? NativeSubscriptionOrigin.Disposed };
             result = outcome;
         }
         try { await release(result).ConfigureAwait(false); }
