@@ -72,12 +72,18 @@ public sealed class CompatibilityTests
     }
 
     [Test]
-    [Arguments("0.2.0-preview.1")]
-    [Arguments("10.10.0.1")]
-    public async Task ARevisionOfTheSameNativeReleaseWithARecordedRemovalIsRefused(string baseline)
+    public async Task ARevisionOfTheSameNativeReleaseWithARecordedRemovalIsRefused()
     {
-        var refusal = await Assert.ThrowsAsync<QualificationException>(() => Check("10.10.0.2", "10.10.0", baseline, Candidate.DeclaredApi(Shipped, Unshipped)));
+        var refusal = await Assert.ThrowsAsync<QualificationException>(() => Check("10.10.0.2", "10.10.0", "10.10.0.1", Candidate.DeclaredApi(Shipped, Unshipped)));
         await Assert.That(refusal!.Message).IsEqualTo("1 published baseline entries (above) are missing; native 10.10.0 revisions must keep them.");
+    }
+
+    // A preview promised no compatibility, so the first mirrored release may break it, but still only with notes.
+    [Test]
+    public async Task ARemovalFromAPreviewBaselineNeedsMigrationNotesForTheSameNativeRelease()
+    {
+        var refusal = await Assert.ThrowsAsync<QualificationException>(() => Check("10.10.0.1", "10.10.0", "0.2.0-preview.1", Candidate.DeclaredApi(Shipped, Unshipped)));
+        await Assert.That(refusal!.Message).IsEqualTo("Breaking changes (above) need migration notes at docs/migration/10.10.0.md.");
     }
 
     [Test]

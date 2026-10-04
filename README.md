@@ -109,8 +109,9 @@ The compatibility baseline is the latest `v*` release tag that precedes the cand
 NuGet version order, which places `0.1.0-preview.1` and `0.2.0-preview.1` below every
 mirrored version. Every public API line and CLI line (grammar, output fields, schemas and
 exit codes) recorded at that tag must remain while the candidate binds the baseline's
-native release. Only a candidate that binds a later native release can remove one, and it
-needs migration notes at `docs/migration/<native version>.md`, for example
+native release. Only a candidate that binds a later native release, or whose baseline is a
+preview (a prerelease version such as `0.2.0-preview.1`), can remove one, and it needs
+migration notes at `docs/migration/<native version>.md`, for example
 `docs/migration/10.11.0.md`. A candidate that binds an earlier native release than its
 baseline is refused. A mirrored baseline binds its first three version parts; the two
 releases before mirroring bind the native releases in the
