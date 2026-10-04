@@ -22,7 +22,7 @@ so that the CLI and the SDK have the same version and source commit:
 ```sh
 git clone https://github.com/faviann/zeroshot-dotnet-sdk.git
 cd zeroshot-dotnet-sdk
-git checkout v10.10.0.1
+git checkout v10.10.0.1-preview.1
 dotnet build src/Zeroshot.Cli --configuration Release
 dotnet run --project src/Zeroshot.Cli --configuration Release --no-build -- --version
 ```
@@ -31,9 +31,9 @@ To use it as a .NET tool, pack it and install it from that local folder:
 
 ```sh
 dotnet pack src/Zeroshot.Cli --configuration Release --output ./packages
-dotnet tool install --global Zeroshot.Cli --version 10.10.0.1 --source ./packages
-dotnet tool install --local Zeroshot.Cli --version 10.10.0.1 --source ./packages   # needs a tool manifest
-dotnet tool install Zeroshot.Cli --version 10.10.0.1 --source ./packages --tool-path ./tools
+dotnet tool install --global Zeroshot.Cli --version 10.10.0.1-preview.1 --source ./packages
+dotnet tool install --local Zeroshot.Cli --version 10.10.0.1-preview.1 --source ./packages   # needs a tool manifest
+dotnet tool install Zeroshot.Cli --version 10.10.0.1-preview.1 --source ./packages --tool-path ./tools
 ```
 
 Run a local tool as `dotnet tool run zeroshot-dotnet -- ARGUMENTS`. Without `--`,
@@ -42,8 +42,8 @@ and its `Zeroshot.Client` library's versions, each followed by `+` and the sourc
 then the one native release that library binds:
 
 ```text
-zeroshot-dotnet 10.10.0.1+<commit>
-Zeroshot.Client 10.10.0.1+<commit>
+zeroshot-dotnet 10.10.0.1-preview.1+<commit>
+Zeroshot.Client 10.10.0.1-preview.1+<commit>
 native Zeroshot 10.10.0 3ee1192cec359a0b997f464e703a936e8b67d63c
 ```
 
