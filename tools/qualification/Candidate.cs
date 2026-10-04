@@ -42,13 +42,14 @@ internal static class Candidate
         var cliSpec = Nuspec(cli);
         var version = Value(clientSpec, "version") ?? throw new QualificationException("The library package has no version.");
         if (Value(cliSpec, "version") != version) throw new QualificationException($"The CLI package version {Value(cliSpec, "version")} differs from the library's {version}.");
+        Mirrored(version, Required.NativeVersion);
         foreach (var tag in tags.Where(tag => tag.StartsWith('v')))
             if (tag != "v" + version) throw new QualificationException($"Tag {tag} does not name version {version}.");
         // A tag-triggered run qualifies exactly the release that tag names.
         if (Environment.GetEnvironmentVariable("GITHUB_REF") is { } gitRef && gitRef.StartsWith("refs/tags/v", StringComparison.Ordinal)
             && (gitRef != $"refs/tags/v{version}" || !tags.Contains("v" + version)))
             throw new QualificationException($"{gitRef} does not name version {version} at the checked-out commit.");
-        NativePin.Check(version);
+        NativePin.Check();
         foreach (var spec in new[] { clientSpec, cliSpec })
         {
             var repository = spec.Elements().Single(e => e.Name.LocalName == "repository");
@@ -254,7 +255,7 @@ internal static class Candidate
     /// <summary>
     /// Every baseline entry must still be present. The baseline is the latest release tag (v<version>) that precedes
     /// the candidate, whose recorded API and CLI contract are read from that tag. Only when no release precedes it is
-    /// the baseline the accepted usage prototype. Entries may disappear only in a later minor version, and only with
+    /// the baseline the accepted usage prototype. Entries may disappear only with a later native release, and only with
     /// migration notes for it.
     /// </summary>
     private static JsonObject Compatibility(string version, List<string> candidate)
@@ -262,9 +263,7 @@ internal static class Candidate
         var releases = Tools.Git("tag", "--list", "v*").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         // A shallow or tagless clone would silently fall back to the prototype baseline.
         if (releases.Length == 0) Console.WriteLine("::warning::No v* tags are present; fetch tags if any release has been published.");
-        var prior = releases
-            .Where(tag => SemVer.IsMatch(tag[1..]) && Precedence(tag[1..], version) < 0)
-            .Order(Comparer<string>.Create((a, b) => Precedence(a[1..], b[1..]))).LastOrDefault();
+        var prior = Baseline(releases, version);
         var baseline = prior is null
             ? new JsonObject { ["kind"] = "accepted-prototype", ["version"] = PrototypeVersion, ["contract"] = PrototypeFile, ["decision"] = PrototypeDecision }
             : new JsonObject { ["kind"] = "published", ["version"] = prior[1..], ["tag"] = prior };
@@ -274,55 +273,74 @@ internal static class Candidate
                 .. Entries(Tools.Git("show", $"{prior}:{ContractFile}").Split('\n')).Where(line => line.StartsWith("cli ", StringComparison.Ordinal))];
         Console.WriteLine(prior is null ? "Compatibility baseline: the accepted usage prototype (no earlier v* release tag)."
             : $"Compatibility baseline: release tag {prior}.");
-        return Check(version, baseline, entries, candidate);
+        return Check(version, Required.NativeVersion, baseline, entries, candidate);
     }
 
-    /// <summary>Refuses a candidate that lacks a baseline entry, unless it is a later minor version with migration notes.</summary>
-    internal static JsonObject Check(string version, JsonObject baseline, List<string> entries, List<string> candidate)
+    /// <summary>The latest <c>v*</c> tag naming a package version that precedes <paramref name="version"/>, or null.</summary>
+    internal static string? Baseline(IEnumerable<string> tags, string version)
     {
+        var candidate = PackageVersion.Parse(version);
+        return tags.Select(tag => (Tag: tag, Version: tag.StartsWith('v') ? PackageVersion.TryParse(tag[1..]) : null))
+            .Where(release => release.Version is not null && release.Version.CompareTo(candidate) < 0)
+            .OrderBy(release => release.Version).LastOrDefault().Tag;
+    }
+
+    /// <summary>
+    /// Refuses a candidate that is not a mirrored version of <paramref name="native"/>, binds an earlier native release
+    /// than its baseline, starts a new native release above revision 1, or lacks a baseline entry. Only a later native release may drop one, with migration notes.
+    /// </summary>
+    internal static JsonObject Check(string version, string native, JsonObject baseline, List<string> entries, List<string> candidate)
+    {
+        Mirrored(version, native);
         var baselineVersion = (string)baseline["version"]!;
+        var baselineNative = NativeOf(baselineVersion);
+        var order = PackageVersion.Parse(native).CompareTo(PackageVersion.Parse(baselineNative));
+        if (order < 0) throw new QualificationException($"Version {version} binds native {native}, which precedes native {baselineNative} of its baseline {baselineVersion}.");
+        if (order > 0 && PackageVersion.Parse(version).Revision != 1)
+            throw new QualificationException($"Version {version} is the first release for native {native}; its revision must be 1.");
         var missing = entries.Where(entry => !candidate.Any(line => Matches(entry, line))).ToList();
-        var (major, minor) = Minor(version);
-        var (baselineMajor, baselineMinor) = Minor(baselineVersion);
-        var notes = $"docs/migration/{major}.{minor}.md";
-        var laterMinor = (major, minor).CompareTo((baselineMajor, baselineMinor)) > 0;
-        if ((major, minor).CompareTo((baselineMajor, baselineMinor)) < 0)
-            throw new QualificationException($"Version {version} precedes its baseline {baselineVersion}.");
+        var notes = $"docs/migration/{native}.md";
         if (missing.Count > 0)
         {
             foreach (var entry in missing) Console.Error.WriteLine($"- {entry}");
-            if (!laterMinor) throw new QualificationException($"{missing.Count} {baseline["kind"]} baseline entries (above) are missing; {major}.{minor} releases must keep them.");
-            if (!File.Exists(notes)) throw new QualificationException($"Breaking changes (above) in {major}.{minor} need migration notes at {notes}.");
+            if (order == 0) throw new QualificationException($"{missing.Count} {baseline["kind"]} baseline entries (above) are missing; native {native} revisions must keep them.");
+            if (!File.Exists(notes)) throw new QualificationException($"Breaking changes (above) need migration notes at {notes}.");
         }
         return new JsonObject
         {
             ["baseline"] = baseline,
+            ["baselineNative"] = baselineNative,
             ["entries"] = entries.Count,
             ["missing"] = new JsonArray([.. missing.Select(entry => (JsonNode?)entry)]),
             ["migrationNotes"] = missing.Count > 0 ? notes : null,
         };
     }
 
-    private static readonly Regex SemVer = new(@"^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$");
-
-    /// <summary>Semantic-version precedence (numeric core, then a prerelease before its release, then identifiers).</summary>
-    private static int Precedence(string left, string right)
+    /// <summary>
+    /// A release version mirrors the native release it binds, <c>native major.minor.patch.revision</c>: revision 1 or
+    /// later (NuGet normalizes <c>.0</c> away) and no prerelease label.
+    /// </summary>
+    internal static void Mirrored(string version, string native)
     {
-        var (a, b) = (SemVer.Match(left), SemVer.Match(right));
-        if (!a.Success || !b.Success) throw new QualificationException($"'{left}' or '{right}' is not a semantic version.");
-        for (var i = 1; i <= 3; i++)
-            if (int.Parse(a.Groups[i].Value).CompareTo(int.Parse(b.Groups[i].Value)) is not 0 and var core) return core;
-        if (a.Groups[4].Success != b.Groups[4].Success) return a.Groups[4].Success ? -1 : 1;
-        if (!a.Groups[4].Success) return 0;
-        var (x, y) = (a.Groups[4].Value.Split('.'), b.Groups[4].Value.Split('.'));
-        for (var i = 0; i < Math.Min(x.Length, y.Length); i++)
-        {
-            var (xNumber, yNumber) = (int.TryParse(x[i], out var xn), int.TryParse(y[i], out var yn));
-            var order = xNumber && yNumber ? xn.CompareTo(yn) : xNumber != yNumber ? (xNumber ? -1 : 1) : string.CompareOrdinal(x[i], y[i]);
-            if (order != 0) return order;
-        }
-        return x.Length.CompareTo(y.Length);
+        if (version.Split('.').Length != 4 || PackageVersion.TryParse(version) is not { Prerelease: null } release)
+            throw new QualificationException($"Version {version} is not <native major>.<native minor>.<native patch>.<revision> with revision 1 or later"
+                + " (NuGet drops a revision 0, and a release carries no prerelease label).");
+        if ($"{release.Major}.{release.Minor}.{release.Patch}" != native)
+            throw new QualificationException($"Version {version} does not mirror the pinned native {native} (native.props).");
+        if (release.Revision < 1) throw new QualificationException($"Version {version} has revision 0; revisions start at 1.");
     }
+
+    /// <summary>
+    /// The native release a baseline binds: a mirrored version's first three parts. The two releases before mirroring
+    /// are fixed history (README "Native compatibility"); the accepted prototype is 0.1.0-preview.1's.
+    /// </summary>
+    internal static string NativeOf(string version) => version switch
+    {
+        "0.1.0-preview.1" => "10.9.0",
+        "0.2.0-preview.1" => "10.10.0",
+        _ when version.Split('.').Length == 4 && PackageVersion.TryParse(version) is { Prerelease: null } release => $"{release.Major}.{release.Minor}.{release.Patch}",
+        _ => throw new QualificationException($"Baseline {version} names no native release."),
+    };
 
     /// <summary>
     /// A published baseline entry is an exact line. A prototype entry names a symbol: it matches any declared API line
@@ -338,11 +356,35 @@ internal static class Candidate
         var core = line[start..];
         return core == name || core.StartsWith(name, StringComparison.Ordinal) && core[name.Length] is '.' or '(' or ' ' or '<';
     }
+}
 
-    private static (int Major, int Minor) Minor(string version)
+/// <summary>
+/// A NuGet package version: three or four numeric parts (a missing fourth is 0) and an optional prerelease label, which
+/// sorts before the same numbers without one; labels compare by semantic-version identifier rules.
+/// </summary>
+internal sealed record PackageVersion(int Major, int Minor, int Patch, int Revision, string? Prerelease) : IComparable<PackageVersion>
+{
+    private static readonly Regex Shape = new(@"^(\d{1,9})\.(\d{1,9})\.(\d{1,9})(?:\.(\d{1,9}))?(?:-([0-9A-Za-z.-]+))?$");
+
+    public static PackageVersion? TryParse(string text) => Shape.Match(text) is { Success: true } match
+        ? new(int.Parse(match.Groups[1].Value), int.Parse(match.Groups[2].Value), int.Parse(match.Groups[3].Value),
+            match.Groups[4].Success ? int.Parse(match.Groups[4].Value) : 0, match.Groups[5].Success ? match.Groups[5].Value : null)
+        : null;
+
+    public static PackageVersion Parse(string text) => TryParse(text) ?? throw new QualificationException($"'{text}' is not a package version.");
+
+    public int CompareTo(PackageVersion? other)
     {
-        var match = Regex.Match(version, @"^(\d+)\.(\d+)\.");
-        return match.Success ? (int.Parse(match.Groups[1].Value), int.Parse(match.Groups[2].Value))
-            : throw new QualificationException($"'{version}' is not a semantic version.");
+        if (other is null) return 1;
+        if ((Major, Minor, Patch, Revision).CompareTo((other.Major, other.Minor, other.Patch, other.Revision)) is not 0 and var core) return core;
+        if (Prerelease is null || other.Prerelease is null) return (Prerelease is null).CompareTo(other.Prerelease is null);
+        var (x, y) = (Prerelease.Split('.'), other.Prerelease.Split('.'));
+        for (var i = 0; i < Math.Min(x.Length, y.Length); i++)
+        {
+            var (xNumber, yNumber) = (int.TryParse(x[i], out var xn), int.TryParse(y[i], out var yn));
+            var order = xNumber && yNumber ? xn.CompareTo(yn) : xNumber != yNumber ? (xNumber ? -1 : 1) : string.CompareOrdinal(x[i], y[i]);
+            if (order != 0) return order;
+        }
+        return x.Length.CompareTo(y.Length);
     }
 }

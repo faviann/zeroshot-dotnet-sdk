@@ -15,6 +15,8 @@ internal static class NativePin
     private static readonly (string Path, string? Sdk, string Reason)[] Allowed =
     [
         ("docs/migration/", null, "Migration notes describe the move away from an earlier binding."),
+        ("tools/qualification/Candidate.cs", null, "Maps the releases before mirrored versions to the native releases they bind."),
+        ("tests/Qualification.Tests/", null, "Compatibility fixtures model earlier bindings and baselines."),
         ("docs/contracts/native-inventory.md", "0.1.0-preview.1", "The interface inventory cites the native sources it was read from."),
         ("tests/Zeroshot.Sdk.Tests/SubmitTests.cs", "0.1.0-preview.1", "Proves a client configured with the previous binding is refused."),
         ("tests/Zeroshot.Sdk.Tests/DashboardContractTests.cs", "0.1.0-preview.1", "Names the stock release a fixture was trimmed from."),
@@ -25,15 +27,17 @@ internal static class NativePin
     private static readonly Regex Context = new(
         @"(?i:\bnative(?:\s+zeroshot)?|zeroshot-v|/the-open-engine/zeroshot/(?:tree|blob|commit)/|/releases/(?:tag|download)/v)[\s*`:]*(?<value>\d+\.\d+\.\d+|[0-9a-f]{40})(?!\w|\.\d)");
 
-    public static void Check(string version)
+    public static void Check()
     {
         string[] pin = [Required.NativeVersion, Required.NativeSourceRevision];
         var rows = new Dictionary<string, string[]>();
         foreach (var row in File.ReadLines(Table).Select(line => Row.Match(line.TrimEnd('\r'))).Where(row => row.Success))
             if (!rows.TryAdd(row.Groups["sdk"].Value, [row.Groups["version"].Value, row.Groups["revision"].Value]))
                 throw new QualificationException($"The native compatibility table in {Table} lists {row.Groups["sdk"].Value} twice.");
-        if (!rows.TryGetValue(version, out var current) || !current.SequenceEqual(pin))
-            throw new QualificationException($"The native compatibility table in {Table} must list {version} with native {pin[0]} at {pin[1]}.");
+        // Mirrored releases share one row per native release: every revision of it binds the same source.
+        var current = $"{pin[0]}.*";
+        if (!rows.TryGetValue(current, out var listed) || !listed.SequenceEqual(pin))
+            throw new QualificationException($"The native compatibility table in {Table} must list {current} with native {pin[0]} at {pin[1]}.");
         var earlier = rows.Values.SelectMany(row => row).Except(pin).ToHashSet();
         var known = earlier.Select(value => new Regex($@"(?<![\w.]){Regex.Escape(value)}(?!\w|\.\d)")).ToList();
 
