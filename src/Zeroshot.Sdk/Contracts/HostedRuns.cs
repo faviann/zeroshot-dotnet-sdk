@@ -39,12 +39,6 @@ public sealed record HostedRunStatusResult : TargetHttpContract
     [JsonPropertyName("workspaceRecovery")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<WorkspaceRecovery> WorkspaceRecovery { get; init; }
-
-    // Native defaults an omitted workspaceRecovery; null is not one of its values.
-    internal override void Validate()
-    {
-        if (WorkspaceRecovery is { HasValue: true, Value: null }) throw new JsonException();
-    }
 }
 
 public sealed record HostedRunListResult : TargetHttpContract

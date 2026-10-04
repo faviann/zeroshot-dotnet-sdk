@@ -11,7 +11,7 @@ public abstract record NativeContract
     public sealed override string ToString() => GetType().Name;
 
     /// <summary>
-    /// The contract's own rules beyond strict typed decoding and nested pinned schemas. The serializer runs
+    /// The contract's own rules beyond strict typed decoding and member rules. The serializer runs
     /// them on every decoded record, at any depth.
     /// </summary>
     internal virtual void Validate() { }
