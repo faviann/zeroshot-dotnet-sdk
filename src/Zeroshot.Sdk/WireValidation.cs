@@ -26,9 +26,7 @@ internal static class WireValidation
         if (typeof(NativeString).IsAssignableFrom(type) || typeof(INativeScalar).IsAssignableFrom(type)) return null;
         if (!typeof(NativeContract).IsAssignableFrom(type)) throw new ArgumentException("Unsupported native contract type.");
         // Required fields, nullability, exact field names, per-type extension strictness and nested pinned schemas.
-        var result = (NativeContract?)JsonSerializer.Deserialize(value, type, NativeJson.Options) ?? throw new JsonException();
-        result.CheckWire(value);
-        return result;
+        return JsonSerializer.Deserialize(value, type, NativeJson.Options) ?? throw new JsonException();
     }
 
     /// <summary>The pinned schema and native rules of a schema-named contract and everything nested in it.</summary>
