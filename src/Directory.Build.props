@@ -3,9 +3,12 @@
   <!-- One version and one set of package metadata for the library and the matching locally built CLI. -->
   <PropertyGroup>
     <!-- The version mirrors the bound native release plus an SDK revision (README "Versioning"). A release of the same
-         native release increments the revision; binding a new native release resets it to 1. Revisions start at 1. -->
+         native release increments the revision; binding a new native release resets it to 1. Revisions start at 1.
+         A preview of a revision sets the prerelease label to preview.<n>; the release clears it. -->
     <ZeroshotSdkRevision>1</ZeroshotSdkRevision>
+    <ZeroshotSdkPrerelease>preview.1</ZeroshotSdkPrerelease>
     <Version>$(ZeroshotNativeVersion).$(ZeroshotSdkRevision)</Version>
+    <Version Condition="'$(ZeroshotSdkPrerelease)' != ''">$(Version)-$(ZeroshotSdkPrerelease)</Version>
     <Authors>faviann</Authors>
     <Copyright>Copyright (c) 2026 faviann</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

@@ -255,28 +255,34 @@ internal static class Candidate
     }
 
     /// <summary>
-    /// A release version mirrors the native release it binds, <c>native major.minor.patch.revision</c>: revision 1 or
-    /// later (NuGet normalizes <c>.0</c> away) and no prerelease label.
+    /// A mirrored version names the native release it binds, <c>native major.minor.patch.revision</c>: revision 1 or
+    /// later (NuGet normalizes <c>.0</c> away), optionally a preview of that revision labelled <c>preview.n</c> from 1.
     /// </summary>
     internal static void Mirrored(string version, string native)
     {
-        if (version.Split('.').Length != 4 || PackageVersion.TryParse(version) is not { Prerelease: null } release)
-            throw new QualificationException($"Version {version} is not <native major>.<native minor>.<native patch>.<revision> with revision 1 or later"
-                + " (NuGet drops a revision 0, and a release carries no prerelease label).");
+        if (MirroredVersion(version) is not { } release)
+            throw new QualificationException($"Version {version} is not <native major>.<native minor>.<native patch>.<revision>[-preview.<n>] with revision"
+                + " 1 or later and n 1 or later (NuGet drops a revision 0, and preview.<n> is the only prerelease label).");
         if ($"{release.Major}.{release.Minor}.{release.Patch}" != native)
             throw new QualificationException($"Version {version} does not mirror the pinned native {native} (native.props).");
         if (release.Revision < 1) throw new QualificationException($"Version {version} has revision 0; revisions start at 1.");
     }
 
+    private static readonly Regex Preview = new(@"^preview\.[1-9][0-9]*$");
+
+    private static PackageVersion? MirroredVersion(string version)
+        => PackageVersion.TryParse(version) is { } parsed && version.Split('-')[0].Split('.').Length == 4
+            && (parsed.Prerelease is null || Preview.IsMatch(parsed.Prerelease)) ? parsed : null;
+
     /// <summary>
-    /// The native release a baseline binds: a mirrored version's first three parts. The two releases before mirroring
-    /// are fixed history (README "Native compatibility"); the accepted prototype is 0.1.0-preview.1's.
+    /// The native release a baseline binds: a mirrored version's first three parts, previews included. The two releases
+    /// before mirroring are fixed history (README "Native compatibility"); the accepted prototype is 0.1.0-preview.1's.
     /// </summary>
     internal static string NativeOf(string version) => version switch
     {
         "0.1.0-preview.1" => "10.9.0",
         "0.2.0-preview.1" => "10.10.0",
-        _ when version.Split('.').Length == 4 && PackageVersion.TryParse(version) is { Prerelease: null } release => $"{release.Major}.{release.Minor}.{release.Patch}",
+        _ when MirroredVersion(version) is { } release => $"{release.Major}.{release.Minor}.{release.Patch}",
         _ => throw new QualificationException($"Baseline {version} names no native release."),
     };
 

@@ -26,7 +26,7 @@ public sealed class CompatibilityTests
     [Test]
     public async Task VersionsOrderNumericallyPartByPartWithLegacyPrereleasesBelowMirroredReleases()
     {
-        string[] ordered = ["0.1.0-preview.1", "0.2.0-preview.1", "10.9.1.2", "10.10.0-rc.1", "10.10.0", "10.10.0.1", "10.10.0.2", "10.10.0.10", "10.11.0.1"];
+        string[] ordered = ["0.1.0-preview.1", "0.2.0-preview.1", "10.9.1.2", "10.10.0-rc.1", "10.10.0", "10.10.0.1-preview.1", "10.10.0.1-preview.2", "10.10.0.1-preview.10", "10.10.0.1", "10.10.0.2", "10.10.0.10", "10.11.0.1"];
         await Assert.That(string.Join(" < ", ordered.Reverse().OrderBy(PackageVersion.Parse))).IsEqualTo(string.Join(" < ", ordered));
         // NuGet semantics: a missing fourth part is 0.
         await Assert.That(PackageVersion.Parse("10.10.0").CompareTo(PackageVersion.Parse("10.10.0.0"))).IsEqualTo(0);
@@ -43,18 +43,33 @@ public sealed class CompatibilityTests
     }
 
     [Test]
+    public async Task APreviewFollowsTheLegacyReleasesAndPrecedesItsRevision()
+    {
+        string[] tags = ["v0.2.0-preview.1", "v10.10.0.1-preview.1", "v10.10.0.1-preview.2"];
+        await Assert.That(Candidate.Baseline(tags[..1], "10.10.0.1-preview.1")).IsEqualTo("v0.2.0-preview.1");
+        await Assert.That(Candidate.Baseline(tags, "10.10.0.1-preview.2")).IsEqualTo("v10.10.0.1-preview.1");
+        await Assert.That(Candidate.Baseline(tags, "10.10.0.1")).IsEqualTo("v10.10.0.1-preview.2");
+    }
+
+    [Test]
     public async Task ABaselineBindsTheNativeReleaseItMirrorsOrThatTheLegacyTableRecords()
     {
         await Assert.That(Candidate.NativeOf("0.1.0-preview.1")).IsEqualTo("10.9.0");
         await Assert.That(Candidate.NativeOf("0.2.0-preview.1")).IsEqualTo("10.10.0");
         await Assert.That(Candidate.NativeOf("10.11.2.3")).IsEqualTo("10.11.2");
+        await Assert.That(Candidate.NativeOf("10.10.0.1-preview.1")).IsEqualTo("10.10.0");
+        await Assert.ThrowsAsync<QualificationException>(() => Task.FromResult(Candidate.NativeOf("10.10.0.1-rc.1")));
         await Assert.ThrowsAsync<QualificationException>(() => Task.FromResult(Candidate.NativeOf("0.3.0-preview.1")));
     }
 
     [Test]
     [Arguments("10.10.0.0", "has revision 0")]
     [Arguments("10.10.0", "is not <native major>")]
-    [Arguments("10.10.0.1-preview.1", "is not <native major>")]
+    [Arguments("10.10.0.1-rc.1", "is not <native major>")]
+    [Arguments("10.10.0.1-preview.0", "is not <native major>")]
+    [Arguments("10.10.0.1-preview", "is not <native major>")]
+    [Arguments("10.10.0-preview.1", "is not <native major>")]
+    [Arguments("10.10.0.0-preview.1", "has revision 0")]
     [Arguments("10.9.1.1", "does not mirror the pinned native 10.10.0")]
     [Arguments("10.10.1.1", "does not mirror the pinned native 10.10.0")]
     public async Task OnlyAMirroredVersionOfThePinnedNativeReleaseQualifies(string version, string reason)
@@ -72,6 +87,14 @@ public sealed class CompatibilityTests
     }
 
     [Test]
+    public async Task APreviewOfTheFirstMirroredReleaseKeepsAnUnchangedContract()
+    {
+        var result = await Check("10.10.0.1-preview.1", "10.10.0", "0.2.0-preview.1", ["api " + Kept, "api " + Dropped]);
+        await Assert.That(result.BaselineNative).IsEqualTo("10.10.0");
+        await Assert.That(result.Missing).IsEmpty();
+    }
+
+    [Test]
     public async Task ARevisionOfTheSameNativeReleaseWithARecordedRemovalIsRefused()
     {
         var refusal = await Assert.ThrowsAsync<QualificationException>(() => Check("10.10.0.2", "10.10.0", "10.10.0.1", Candidate.DeclaredApi(Shipped, Unshipped)));
@@ -84,6 +107,24 @@ public sealed class CompatibilityTests
     {
         var refusal = await Assert.ThrowsAsync<QualificationException>(() => Check("10.10.0.1", "10.10.0", "0.2.0-preview.1", Candidate.DeclaredApi(Shipped, Unshipped)));
         await Assert.That(refusal!.Message).IsEqualTo("Breaking changes (above) need migration notes at docs/migration/10.10.0.md.");
+    }
+
+    // Every preview of a revision, and the revision itself, may break the preview before it, with notes.
+    [Test]
+    [Arguments("10.10.0.1-preview.1", "0.2.0-preview.1")]
+    [Arguments("10.10.0.1-preview.2", "10.10.0.1-preview.1")]
+    [Arguments("10.10.0.1", "10.10.0.1-preview.3")]
+    public async Task ARemovalFromAMirroredPreviewBaselineNeedsMigrationNotes(string version, string baseline)
+    {
+        var refusal = await Assert.ThrowsAsync<QualificationException>(() => Check(version, "10.10.0", baseline, Candidate.DeclaredApi(Shipped, Unshipped)));
+        await Assert.That(refusal!.Message).IsEqualTo("Breaking changes (above) need migration notes at docs/migration/10.10.0.md.");
+    }
+
+    [Test]
+    public async Task APreviewOfALaterRevisionKeepsTheReleasedContract()
+    {
+        var refusal = await Assert.ThrowsAsync<QualificationException>(() => Check("10.10.0.2-preview.1", "10.10.0", "10.10.0.1", Candidate.DeclaredApi(Shipped, Unshipped)));
+        await Assert.That(refusal!.Message).IsEqualTo("1 published baseline entries (above) are missing; native 10.10.0 revisions must keep them.");
     }
 
     [Test]
