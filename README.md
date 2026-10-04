@@ -31,7 +31,7 @@ explicit serialization/export remains the caller's responsibility.
 | Project | Purpose |
 | --- | --- |
 | `src/Zeroshot.Sdk` | `Zeroshot.Client` execution-contract library. |
-| `src/Zeroshot.Cli` | `zeroshot-dotnet` command (local `Zeroshot.Cli` tool package); see the [CLI guide](docs/cli/README.md). |
+| `src/Zeroshot.Cli` | `zeroshot-dotnet` command for agents and scripts (local `Zeroshot.Cli` tool package); see the [CLI guide](docs/cli/README.md). |
 | `tests/Zeroshot.Sdk.Tests` | Golden contracts, native value boundaries and retained-request ownership. |
 | `tests/Zeroshot.Cli.Tests` | Process-level CLI fixtures against the built command. |
 | `examples/ContractsConsumer` | External consumer referencing the packed library. |
