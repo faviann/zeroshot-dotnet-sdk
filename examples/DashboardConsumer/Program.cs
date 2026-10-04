@@ -239,9 +239,14 @@ Console.WriteLine(JsonSerializer.Serialize(new
 static async Task<object> Problem(Func<Task> call, HttpStatusCode status, string code)
 {
     try { await call(); }
-    catch (NativeHttpException error) when (error is { Kind: NativeHttpFailureKind.HttpStatus, Problem: NativeUiProblem } &&
-        error.StatusCode == status && error.Problem.Code == code)
-    { var problem = ((NativeUiProblem)error.Problem).Body; return new { status = (int)status, problem.Code, problem.Message }; }
+    // Run-history routes refuse in their own variant; every other browser route in the UI router's.
+    catch (NativeHttpException error) when (error.Kind == NativeHttpFailureKind.HttpStatus && error.StatusCode == status && error.Problem switch
+    {
+        NativeUiProblem { Body: var body } when body.Code == code => (object)new { status = (int)status, body.Code, body.Message },
+        NativeRunHistoryProblem history when history.Code == code => new { status = (int)status, history.Code, history.Message },
+        _ => null
+    } is { } problem)
+    { return problem; }
     throw new InvalidOperationException($"Expected native {code}.");
 }
 

@@ -94,7 +94,7 @@ Console.WriteLine(JsonSerializer.Serialize(new
         diagnostics = Wire(diagnostics),
         unknownDiagnostics = Wire(unknownDiagnostics),
         refusals = missing.Append(ahead).Concat(unauthorized)
-            .Select(error => new { error.Operation, status = (int)error.StatusCode!, problem = Wire(error.Problem!) })
+            .Select(error => new { error.Operation, status = (int)error.StatusCode!, problem = ProblemWire(error.Problem!) })
     },
     oecp = new { endpoint = session.Endpoint, sessionBearer = "present (not recorded)", emptyGet = Wire(cluster), status = Wire(status) }
 }));
@@ -121,7 +121,15 @@ static object Evidence(NativeAttempt<EmptyResponse> attempt) => new
     outcome = attempt.Outcome.ToString(),
     attempt.CorrelationId,
     status = (attempt.Failure as NativeHttpException)?.StatusCode is { } status ? (int)status : (int?)null,
-    problem = (attempt.Failure as NativeHttpException)?.Problem is { } problem ? Wire(problem) : (JsonElement?)null
+    problem = (attempt.Failure as NativeHttpException)?.Problem is { } problem ? ProblemWire(problem) : (JsonElement?)null
+};
+// The refusal body as native sent it: {code, message, details?}, whichever variant the operation reads it as.
+static JsonElement ProblemWire(NativeHttpProblem problem) => problem switch
+{
+    NativeTargetProblem { Body: var body } => Wire(body),
+    NativeRunHistoryProblem history => JsonSerializer.SerializeToElement(new { code = history.Code, message = history.Message, details = history.Details },
+        new JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull }),
+    _ => throw new InvalidOperationException($"Unexpected {problem.GetType().Name} from a private export.")
 };
 static JsonElement Wire<T>(T value)
 {
