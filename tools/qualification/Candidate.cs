@@ -287,7 +287,7 @@ internal static class Candidate
 
     /// <summary>
     /// Refuses a candidate that is not a mirrored version of <paramref name="native"/>, binds an earlier native release
-    /// than its baseline, or lacks a baseline entry. Only a later native release may drop one, with migration notes.
+    /// than its baseline, starts a new native release above revision 1, or lacks a baseline entry. Only a later native release may drop one, with migration notes.
     /// </summary>
     internal static JsonObject Check(string version, string native, JsonObject baseline, List<string> entries, List<string> candidate)
     {
@@ -296,6 +296,8 @@ internal static class Candidate
         var baselineNative = NativeOf(baselineVersion);
         var order = PackageVersion.Parse(native).CompareTo(PackageVersion.Parse(baselineNative));
         if (order < 0) throw new QualificationException($"Version {version} binds native {native}, which precedes native {baselineNative} of its baseline {baselineVersion}.");
+        if (order > 0 && PackageVersion.Parse(version).Revision != 1)
+            throw new QualificationException($"Version {version} is the first release for native {native}; its revision must be 1.");
         var missing = entries.Where(entry => !candidate.Any(line => Matches(entry, line))).ToList();
         var notes = $"docs/migration/{native}.md";
         if (missing.Count > 0)

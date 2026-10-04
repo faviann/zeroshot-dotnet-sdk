@@ -95,4 +95,11 @@ public sealed class CompatibilityTests
         var refusal = await Assert.ThrowsAsync<QualificationException>(() => Check("10.9.1.1", "10.9.1", "0.2.0-preview.1", ["api " + Kept, "api " + Dropped]));
         await Assert.That(refusal!.Message).Contains("precedes native 10.10.0 of its baseline 0.2.0-preview.1");
     }
+
+    [Test]
+    public async Task TheFirstReleaseForANewNativeReleaseIsRevisionOne()
+    {
+        var refusal = await Assert.ThrowsAsync<QualificationException>(() => Check("10.11.0.3", "10.11.0", "10.10.0.2", ["api " + Kept, "api " + Dropped]));
+        await Assert.That(refusal!.Message).StartsWith("Version 10.11.0.3 is the first release for").And.EndsWith("its revision must be 1.");
+    }
 }
