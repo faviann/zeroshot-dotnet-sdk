@@ -24,9 +24,10 @@ internal static class Publication
         var candidate = CandidateFiles.Load(Path.Combine(artifacts, "candidate"));
         var qualificationPath = Path.Combine(artifacts, "qualification", "qualification.json");
         if (!File.Exists(qualificationPath)) throw new QualificationException($"No qualification evidence at {qualificationPath}.");
-        var qualification = JsonFile.Read<QualificationManifest>(qualificationPath);
-        if (!qualification.Qualified) throw new QualificationException("The candidate was not qualified.");
-        if (!JsonFile.Same(qualification.Candidate, candidate.Manifest))
+        var text = File.ReadAllText(qualificationPath);
+        if (!JsonFile.Parse<QualificationManifest>(text, qualificationPath).Qualified) throw new QualificationException("The candidate was not qualified.");
+        // The JSON itself, not the records read from it: a field either file adds must also differ.
+        if (!JsonNode.DeepEquals(JsonNode.Parse(text)!["candidate"], JsonNode.Parse(File.ReadAllText(candidate.ManifestPath))))
             throw new QualificationException("The qualification evidence names another candidate than the downloaded one.");
         if (tag != "v" + candidate.Version || candidate.Manifest.ReleaseTag != tag)
             throw new QualificationException($"Tag {tag} is not the candidate's release tag (version {candidate.Version}, releaseTag {candidate.Manifest.ReleaseTag}).");

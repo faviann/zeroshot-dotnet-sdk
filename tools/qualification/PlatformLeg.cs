@@ -23,6 +23,9 @@ internal static class PlatformLeg
         "cli-repository", "cli-global-tool", "cli-local-manifest", "cli-explicit-path", "no-python-or-native-used",
     ];
 
+    /// <summary>The checks whose detail is a <see cref="SuiteSummary"/>, the only ones that may skip tests.</summary>
+    public static readonly string[] Suites = ["sdk-tests", "cli-repository", "cli-global-tool", "cli-local-manifest", "cli-explicit-path"];
+
     public static int Run(string candidateDirectory, string runner, string output)
     {
         if (!File.Exists("Zeroshot.sln")) throw new QualificationException("Run from the repository root.");
@@ -43,8 +46,8 @@ internal static class PlatformLeg
         {
             Console.WriteLine($"::group::{name}");
             CheckResult record;
-            try { record = new(name, JsonFile.Node(check()), true, null); }
-            catch (Exception failure) { record = new(name, null, false, failure.Message); }
+            try { record = new() { Name = name, Detail = JsonFile.Node(check()), Passed = true }; }
+            catch (Exception failure) { record = new() { Name = name, Passed = false, Failure = failure.Message }; }
             Console.WriteLine("::endgroup::");
             Console.WriteLine($"{(record.Passed ? "PASS" : "FAIL")} {name}{(record.Failure is { } reason ? ": " + reason : "")}");
             checks.Add(record);

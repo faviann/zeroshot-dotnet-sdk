@@ -166,6 +166,7 @@ internal static class Tools
 /// <summary>The packed candidate: its manifest and the exact package bytes every later job must receive.</summary>
 internal sealed record CandidateFiles(string Directory, CandidateManifest Manifest)
 {
+    public string ManifestPath => Path.Combine(Directory, "candidate.json");
     public string Version => Manifest.Version;
     public string Commit => Manifest.SourceCommit;
     public string ClientFile => Path.Combine(Directory, Manifest.Packages.Client.File);

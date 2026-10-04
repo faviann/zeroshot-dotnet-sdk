@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 /// <summary>
@@ -16,7 +15,10 @@ internal static class Gate
         var identity = candidate.Identity();
         if (!candidate.Manifest.WorktreeClean) failures.Add("The candidate was packed from a modified worktree.");
 
-        var legs = Directory.GetFiles(artifacts, "evidence.json", SearchOption.AllDirectories).Select(JsonFile.Read<LegEvidence>).ToList();
+        var legs = new List<LegEvidence>();
+        foreach (var file in Directory.GetFiles(artifacts, "evidence.json", SearchOption.AllDirectories))
+            try { legs.Add(JsonFile.Read<LegEvidence>(file)); }
+            catch (QualificationException malformed) { failures.Add(malformed.Message); }
         foreach (var leg in legs.Where(leg => !Required.Platforms.Any(platform => platform.Runner == leg.Runner)))
             failures.Add($"Evidence from {leg.Runner}, which is not a required platform.");
         var platforms = new List<PlatformSummary>();
@@ -31,12 +33,18 @@ internal static class Gate
             Require(platform.Os == os, $"ran on {platform.Os}, not {os}.");
             Require(platform.ProcessArchitecture == architecture.ToString() && platform.OsArchitecture == architecture.ToString(),
                 $"ran a {platform.ProcessArchitecture} process on {platform.OsArchitecture}, not native {architecture}.");
-            Require(platform.RuntimeVersion?.StartsWith("10.", StringComparison.Ordinal) == true, $"ran .NET {platform.RuntimeVersion}, not .NET 10.");
+            Require(platform.RuntimeVersion.StartsWith("10.", StringComparison.Ordinal), $"ran .NET {platform.RuntimeVersion}, not .NET 10.");
             foreach (var name in PlatformLeg.Checks)
                 Require(leg.Checks.Count(check => check.Name == name && check.Passed) == 1, $"check {name} did not pass.");
-            foreach (var check in leg.Checks)
-                foreach (var skipped in check.Detail?.Deserialize<SuiteSummary>(JsonFile.Options)?.SkippedTests ?? [])
-                    Require(Required.MaySkip(check.Name, os, skipped), $"{check.Name} skipped {skipped}, which must run on {os}.");
+            foreach (var check in leg.Checks.Where(check => check.Detail is not null && PlatformLeg.Suites.Contains(check.Name)))
+            {
+                try
+                {
+                    foreach (var skipped in JsonFile.Parse<SuiteSummary>(check.Detail!, $"{runner} {check.Name} detail").SkippedTests)
+                        Require(Required.MaySkip(check.Name, os, skipped), $"{check.Name} skipped {skipped}, which must run on {os}.");
+                }
+                catch (QualificationException malformed) { Require(false, malformed.Message); }
+            }
             Require(leg.Passed, "the leg did not pass.");
             platforms.Add(new(runner, platform.Os, platform.OsDetail, platform.ProcessArchitecture, platform.OsArchitecture, platform.RuntimeVersion, platform.SdkVersion,
                 [.. leg.Checks.Select(check => new CheckSummary(check.Name, check.Passed, check.Detail))]));

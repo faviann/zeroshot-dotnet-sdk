@@ -8,9 +8,14 @@ using System.Text.Json.Serialization;
 
 internal static class JsonFile
 {
-    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
+    /// <summary>
+    /// Reading fails closed: exact property names, no unknown properties, every positional or <c>required</c> property
+    /// present, and no null where the record declares none.
+    /// </summary>
+    public static readonly JsonSerializerOptions Options = new()
     {
-        WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, NumberHandling = JsonNumberHandling.Strict,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, RespectRequiredConstructorParameters = true, RespectNullableAnnotations = true,
     };
 
     /// <summary>One line, for failure messages.</summary>
@@ -18,8 +23,17 @@ internal static class JsonFile
 
     public static JsonObject? Node(object? value) => value is null ? null : JsonSerializer.SerializeToNode(value, value.GetType(), Options)!.AsObject();
 
-    public static T Read<T>(string path) => JsonSerializer.Deserialize<T>(File.ReadAllText(path), Options)
-        ?? throw new QualificationException($"{path} holds no {typeof(T).Name}.");
+    public static T Read<T>(string path) => Parse<T>(File.ReadAllText(path), path);
+
+    public static T Parse<T>(string text, string source) => Guarded(() => JsonSerializer.Deserialize<T>(text, Options), source);
+
+    public static T Parse<T>(JsonNode node, string source) => Guarded(() => node.Deserialize<T>(Options), source);
+
+    private static T Guarded<T>(Func<T?> read, string source)
+    {
+        try { return read() ?? throw new JsonException("The document is null."); }
+        catch (JsonException malformed) { throw new QualificationException($"{source} is not a valid {typeof(T).Name}: {malformed.Message}"); }
+    }
 
     /// <summary>Writes and echoes the file.</summary>
     public static void Write<T>(string path, T value)
@@ -29,9 +43,6 @@ internal static class JsonFile
         File.WriteAllText(path, text + "\n");
         Console.WriteLine(text);
     }
-
-    /// <summary>Same JSON, so a record holding collections compares by content.</summary>
-    public static bool Same<T>(T x, T y) => JsonSerializer.Serialize(x, Options) == JsonSerializer.Serialize(y, Options);
 }
 
 /// <summary>candidate.json, written by pack.</summary>
@@ -74,11 +85,13 @@ internal sealed record ObservedPlatform(
     string Runtime, string RuntimeVersion, string SdkVersion, string DotnetRoot);
 
 /// <summary>One check of a leg. <see cref="Detail"/> is the check's own record, or absent.</summary>
-internal sealed record CheckResult(
-    string Name,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] JsonObject? Detail,
-    bool Passed,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Failure);
+internal sealed record CheckResult
+{
+    public required string Name { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public JsonObject? Detail { get; init; }
+    public required bool Passed { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Failure { get; init; }
+}
 
 internal sealed record ConsumerRestore(string CachedPackageSha256, int ConsumerLibraries);
 
@@ -99,7 +112,7 @@ internal sealed record QualificationManifest(bool Qualified, CandidateManifest C
 }
 
 internal sealed record PlatformSummary(
-    string Runner, string? Os, string? OsDetail, string? ProcessArchitecture, string? OsArchitecture, string? Runtime, string? Sdk, List<CheckSummary> Checks);
+    string Runner, string Os, string OsDetail, string ProcessArchitecture, string OsArchitecture, string Runtime, string Sdk, List<CheckSummary> Checks);
 
 internal sealed record CheckSummary(string Name, bool Passed, JsonObject? Detail);
 

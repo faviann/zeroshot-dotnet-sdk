@@ -28,12 +28,12 @@ public sealed class RecordShapeTests
         "ubuntu-24.04", new("Ubuntu 24.04", "X64"), new("10.10.0.1", "abc", new("client.nupkg", "c1"), new("cli.nupkg", "c2")),
         new("Ubuntu 24.04", "Ubuntu 24.04.1 LTS", "Linux", "X64", "X64", "linux-x64", ".NET 10.0.0", "10.0.0", "10.0.100", "/dotnet"),
         [
-            new("platform", null, true, null),
-            new("fresh-consumers-restore-candidate", JsonFile.Node(new ConsumerRestore("c1", 3)), true, null),
-            new("sdk-tests", JsonFile.Node(new SuiteSummary(5, 0, 4, 1, ["Skipped(1)"], 0)), true, null),
-            new("cli-repository", JsonFile.Node(new SuiteSummary(2, 0, 2, 0, [], 0) { UnobservedOutput = [], UndeclaredOutput = ["x y"] }), true, null),
-            new("no-python-or-native-used", JsonFile.Node(new Isolation(["/poison", "/dotnet"], ["python"], [], [])), true, null),
-            new("cli-global-tool", null, false, "exited 131."),
+            new() { Name = "platform", Passed = true },
+            new() { Name = "fresh-consumers-restore-candidate", Detail = JsonFile.Node(new ConsumerRestore("c1", 3)), Passed = true },
+            new() { Name = "sdk-tests", Detail = JsonFile.Node(new SuiteSummary(5, 0, 4, 1, ["Skipped(1)"], 0)), Passed = true },
+            new() { Name = "cli-repository", Detail = JsonFile.Node(new SuiteSummary(2, 0, 2, 0, [], 0) { UnobservedOutput = [], UndeclaredOutput = ["x y"] }), Passed = true },
+            new() { Name = "no-python-or-native-used", Detail = JsonFile.Node(new Isolation(["/poison", "/dotnet"], ["python"], [], [])), Passed = true },
+            new() { Name = "cli-global-tool", Passed = false, Failure = "exited 131." },
         ],
         false);
 
@@ -92,11 +92,32 @@ public sealed class RecordShapeTests
     }
 
     [Test]
-    public async Task TheGateReadsSkippedTestsFromASuiteDetailOnly()
+    [Arguments("\"worktreeClean\":true,", "\"worktreeClean\":true,\"extra\":1,")]
+    [Arguments("\"sourceCommit\":", "\"SourceCommit\":")]
+    [Arguments("\"releaseTag\":\"v10.10.0.1\",", "")]
+    [Arguments("\"dotnetSdk\":\"10.0.100\"", "\"dotnetSdk\":null")]
+    [Arguments("\"librarySha256\":\"l1\"}", "\"librarySha256\":\"l1\",\"extra\":1}")]
+    public async Task AnUnknownMisspelledMissingOrNullFieldRefusesTheManifest(string field, string replacement)
+        => await Refused<CandidateManifest>(ManifestJson, field, replacement);
+
+    [Test]
+    [Arguments("{\"name\":\"platform\",\"passed\":true}", "{\"name\":\"platform\"}")]
+    [Arguments(",\"passed\":false}", "}")]
+    [Arguments("\"runner\":\"ubuntu-24.04\"", "\"runner\":null")]
+    [Arguments("\"expected\":{\"os\":\"Ubuntu 24.04\",\"architecture\":\"X64\"},", "")]
+    public async Task ALegWithoutAVerdictOrRunnerIsRefusedRatherThanDefaulted(string field, string replacement)
+        => await Refused<LegEvidence>(EvidenceJson, field, replacement);
+
+    [Test]
+    public async Task AQualificationWithoutItsVerdictIsRefused()
+        => await Refused<QualificationManifest>(QualificationJson, "\"qualified\":false,", "");
+
+    private static async Task Refused<T>(string json, string field, string replacement)
     {
-        var read = JsonSerializer.Deserialize<LegEvidence>(Compact(Evidence), JsonFile.Options)!;
-        var skipped = read.Checks.Select(check => check.Detail?.Deserialize<SuiteSummary>(JsonFile.Options)?.SkippedTests ?? []).ToList();
-        await Assert.That(string.Join("|", skipped.Select(names => string.Join(",", names)))).IsEqualTo("||Skipped(1)|||");
+        var flat = Flat(json);
+        await Assert.That(flat).Contains(field);
+        var refusal = await Assert.ThrowsAsync<QualificationException>(() => Task.FromResult(JsonFile.Parse<T>(flat.Replace(field, replacement), "test.json")));
+        await Assert.That(refusal!.Message).StartsWith($"test.json is not a valid {typeof(T).Name}");
     }
 
     [Test]
@@ -120,7 +141,7 @@ public sealed class RecordShapeTests
     {
         var json = Compact(value);
         await Assert.That(json).IsEqualTo(Flat(expected));
-        await Assert.That(Compact(JsonSerializer.Deserialize<T>(json, JsonFile.Options))).IsEqualTo(json);
+        await Assert.That(Compact(JsonFile.Parse<T>(json, "test.json"))).IsEqualTo(json);
     }
 
     private static string Compact<T>(T value) => JsonSerializer.Serialize(value, Single);
