@@ -13,18 +13,7 @@ using Microsoft.Win32;
 /// </summary>
 internal static class PlatformLeg
 {
-    private static readonly string[] Examples = ["ContractsConsumer", "BindingsConsumer", "RunHandleConsumer"];
     private static readonly string[] Absent = ["python", "python3", "py", "zeroshot"];
-
-    /// <summary>Every check a leg must pass; the gate requires each of them.</summary>
-    public static readonly string[] Checks =
-    [
-        "platform", "fresh-consumers-restore-candidate", "sdk-tests", .. Examples,
-        "cli-repository", "cli-global-tool", "cli-local-manifest", "cli-explicit-path", "no-python-or-native-used",
-    ];
-
-    /// <summary>The checks whose detail is a <see cref="SuiteSummary"/>, the only ones that may skip tests.</summary>
-    public static readonly string[] Suites = ["sdk-tests", "cli-repository", "cli-global-tool", "cli-local-manifest", "cli-explicit-path"];
 
     public static int Run(string candidateDirectory, string runner, string output)
     {
@@ -46,7 +35,7 @@ internal static class PlatformLeg
         {
             Console.WriteLine($"::group::{name}");
             CheckResult record;
-            try { record = new() { Name = name, Detail = JsonFile.Node(check()), Passed = true }; }
+            try { record = QualificationChecks.Passed(name, check(), platform.Os); }
             catch (Exception failure) { record = new() { Name = name, Passed = false, Failure = failure.Message }; }
             Console.WriteLine("::endgroup::");
             Console.WriteLine($"{(record.Passed ? "PASS" : "FAIL")} {name}{(record.Failure is { } reason ? ": " + reason : "")}");
@@ -94,9 +83,9 @@ internal static class PlatformLeg
         {
             // Fresh copies with no route back to src/: they compile only against the restored candidate package.
             File.Copy("global.json", Path.Combine(fresh, "global.json"));
-            foreach (var project in new[] { "tests/Zeroshot.Sdk.Tests", "tests/Zeroshot.Cli.Tests" }.Concat(Examples.Select(name => "examples/" + name)))
+            foreach (var project in new[] { "tests/Zeroshot.Sdk.Tests", "tests/Zeroshot.Cli.Tests" }.Concat(QualificationChecks.Examples.Select(name => "examples/" + name)))
                 CopyProject(project, Path.Combine(fresh, project));
-            foreach (var example in Examples)
+            foreach (var example in QualificationChecks.Examples)
             {
                 var file = Path.Combine(fresh, "examples", example, example + ".csproj");
                 var text = File.ReadAllText(file);
@@ -118,7 +107,7 @@ internal static class PlatformLeg
         });
 
         Check("sdk-tests", () => Suite("sdk-tests", Path.Combine(fresh, "tests", "Zeroshot.Sdk.Tests"), bare, logs, output));
-        foreach (var example in Examples)
+        foreach (var example in QualificationChecks.Examples)
             Check(example, () =>
             {
                 var bin = Path.Combine(fresh, "examples", example, "bin", "Release", "net10.0");
@@ -176,7 +165,7 @@ internal static class PlatformLeg
             return new Isolation([poison, dotnetRoot], Absent, Unreachable([dotnetRoot]), []);
         });
 
-        var passed = checks.All(check => check.Passed);
+        var passed = QualificationChecks.Failures(checks, platform.Os).Count == 0;
         JsonFile.Write(Path.Combine(output, "evidence.json"), new LegEvidence(
             runner, expected.Runner is null ? null : new(expected.Os, expected.Architecture.ToString()), candidate.Identity(), platform, checks, passed));
         return passed ? 0 : 1;
@@ -296,10 +285,7 @@ internal static class PlatformLeg
             workingDirectory: bin, environment: environment, log: Path.Combine(logs, name + ".log"));
         int Count(string label) => Regex.Match(text, $@"^\s*{label}: (\d+)", RegexOptions.Multiline) is { Success: true } match ? int.Parse(match.Groups[1].Value) : -1;
         var skipped = Regex.Matches(text, @"^skipped (.+) \([^()]*\)\r?$", RegexOptions.Multiline).Select(match => match.Groups[1].Value).ToArray();
-        var summary = new SuiteSummary(Count("total"), Count("failed"), Count("succeeded"), Count("skipped"), skipped, exitCode);
-        if (exitCode != 0 || summary.Failed != 0 || summary.Total <= 0 || skipped.Length != summary.Skipped)
-            throw new QualificationException($"{name} did not pass: {JsonFile.Compact(summary)}");
-        return summary;
+        return new SuiteSummary(Count("total"), Count("failed"), Count("succeeded"), Count("skipped"), skipped, exitCode);
     }
 
     /// <summary>The CLI test suite against one form of zeroshot-dotnet, after its --version names the candidate.</summary>
@@ -320,10 +306,7 @@ internal static class PlatformLeg
         };
         var summary = Suite(name, Path.Combine(fresh, "tests", "Zeroshot.Cli.Tests"), suite, logs, output);
         var (unobserved, undeclared) = OutputCoverage(candidate, File.Exists(observedFile) ? File.ReadAllLines(observedFile) : []);
-        summary = summary with { UnobservedOutput = unobserved, UndeclaredOutput = undeclared };
-        if (unobserved.Count > 0 || undeclared.Count > 0)
-            throw new QualificationException($"{name} output differs from the declared contract: {JsonFile.Compact(summary)}");
-        return summary;
+        return summary with { UnobservedOutput = unobserved, UndeclaredOutput = undeclared };
     }
 
     /// <summary>
@@ -338,7 +321,7 @@ internal static class PlatformLeg
         var seen = observed.ToHashSet();
         foreach (var line in observed.Where(line => line.Contains(' ')))
             seen.Add("* " + line.Split(' ', 2)[1]);
-        var unobserved = declared.Where(entry => !seen.Contains(entry) && !Required.MayBeUnobserved(OperatingSystem.IsWindows(), entry))
+        var unobserved = declared.Where(entry => !seen.Contains(entry) && !QualificationChecks.MayBeUnobserved(OperatingSystem.IsWindows(), entry))
             .Order(StringComparer.Ordinal).ToList();
         var undeclared = new List<string>();
         foreach (var line in observed.Where(line => line.Contains(' ')))
