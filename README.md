@@ -19,7 +19,8 @@ under a caller-supplied native binding. Remaining SDK run workflows follow;
 native bindings are tracked in the [coverage manifest](docs/contracts/coverage.json).
 
 Public namespaces are `Zeroshot`, `Zeroshot.Native` and
-`Zeroshot.Native.Contracts`. The scaffold project path remains `src/Zeroshot.Sdk`;
+`Zeroshot.Native.Contracts`, plus the [`AddZeroshotClient`](docs/sdk/README.md#dependency-injection)
+registration in `Microsoft.Extensions.DependencyInjection`. The scaffold project path remains `src/Zeroshot.Sdk`;
 its package and assembly are `Zeroshot.Client`.
 
 Read the [contract guide](docs/contracts/README.md) and the

@@ -165,6 +165,7 @@ package Zeroshot.Cli file tools/net10.0/any/Humanizer.dll
 package Zeroshot.Cli file tools/net10.0/any/Json.More.dll
 package Zeroshot.Cli file tools/net10.0/any/JsonPointer.Net.dll
 package Zeroshot.Cli file tools/net10.0/any/JsonSchema.Net.dll
+package Zeroshot.Cli file tools/net10.0/any/Microsoft.Extensions.DependencyInjection.Abstractions.dll
 package Zeroshot.Cli file tools/net10.0/any/Zeroshot.Client.dll
 package Zeroshot.Cli file tools/net10.0/any/Zeroshot.Client.pdb
 package Zeroshot.Cli file tools/net10.0/any/zeroshot-dotnet.deps.json
@@ -177,6 +178,7 @@ package Zeroshot.Cli repository git https://github.com/faviann/zeroshot-dotnet-s
 package Zeroshot.Cli type DotnetTool
 package Zeroshot.Client authors faviann
 package Zeroshot.Client dependency net10.0 JsonSchema.Net 9.4.0
+package Zeroshot.Client dependency net10.0 Microsoft.Extensions.DependencyInjection.Abstractions 10.0.0
 package Zeroshot.Client file README.md
 package Zeroshot.Client file lib/net10.0/Zeroshot.Client.dll
 package Zeroshot.Client file licenses/NATIVE-LICENSE

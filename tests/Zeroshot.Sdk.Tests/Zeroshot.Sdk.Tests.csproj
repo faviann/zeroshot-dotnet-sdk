@@ -10,6 +10,7 @@
   <ItemGroup>
     <None Include="Fixtures/*.json;Fixtures/cluster/*" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="TUnit" Version="1.68.17" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <!-- Controlled HTTP and multi-connection WebSocket peers shared with the packed consumers. -->
     <Compile Include="../../examples/BindingsConsumer/HttpPeer.cs;../../examples/BindingsConsumer/OecpPeer.cs" LinkBase="Peers" />
   </ItemGroup>

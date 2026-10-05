@@ -33,6 +33,21 @@ Construction, preparation and `GetRun` perform no network I/O. Disposal never st
 The SDK uses target-wide OECP sessions on direct and private targets. Hosted run
 workflows stay with the lower client's `HostedRuns` operations.
 
+## Dependency injection
+
+`AddZeroshotClient` registers a singleton `ZeroshotClient` and the singleton `NativeClient` it uses:
+
+```csharp
+services.AddZeroshotClient(new ZeroshotClientOptions { Target = target, NativeBinding = binding });
+services.AddZeroshotClient(sp => new ZeroshotClientOptions                       // the factory runs once
+{
+    Target = sp.GetRequiredService<Settings>().Target, NativeBinding = binding,
+});
+```
+
+Both use the SDK's own transport; `IHttpClientFactory` and supplied `HttpClient`s do not apply. The container
+disposes both clients. Disposal never stops a run.
+
 ## Requests and preparation
 
 `RunRequest` holds title, graph, runtime, initial input and exact source, plus optional
