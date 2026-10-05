@@ -98,6 +98,68 @@ public sealed class ObservationLifecycleTests
     }
 
     [Test]
+    public async Task PulledResponseDisposalFailureCannotStrandCompletionOrAdmission()
+    {
+        using var delivery = new ObservationDelivery(new TransportOptions { MaxConcurrentSubscriptions = 1 });
+        var queue = delivery.Open<string, Cursor>();
+        var lifecycle = new ObservationLifecycle<string>(queue);
+        var response = new Response(throwOnDispose: true);
+        var failure = ObservationLifecycle<string>.CloseFailure(SubscriptionCloseReason.SlowConsumer);
+        lifecycle.Start(response, _ => Task.FromResult(failure));
+
+        await response.Disposed.Task.WaitAsync(Wait);
+        var result = await lifecycle.Completion.WaitAsync(Wait);
+        Check(result.Origin == NativeSubscriptionOrigin.ServerClosed && ReferenceEquals(result.Failure, failure),
+            "Cleanup must preserve the server's closure evidence.");
+        using var replacement = delivery.Open<string, Cursor>();
+        replacement.Complete();
+    }
+
+    [Test]
+    public async Task PulledCleanupAttemptsEveryStepAndHoldsAdmissionUntilTheProducerStops()
+    {
+        using var delivery = new ObservationDelivery(new TransportOptions { MaxConcurrentSubscriptions = 1 });
+        var queue = delivery.Open<string, Cursor>();
+        var lifecycle = new ObservationLifecycle<string>(queue);
+        var response = new Response(throwOnDispose: true);
+        var started = Signal<bool>();
+        var stop = Signal<bool>();
+        var cancelled = Signal<bool>();
+        var firstFailure = ObservationLifecycle<string>.CloseFailure(SubscriptionCloseReason.SlowConsumer);
+        lifecycle.Start(response, async token =>
+        {
+            using var registration = token.Register(() =>
+            {
+                cancelled.TrySetResult(true);
+                throw new IOException("Cancellation callback failed.");
+            });
+            started.TrySetResult(true);
+            await stop.Task;
+            return ObservationLifecycle<string>.CloseFailure(SubscriptionCloseReason.SourceUnavailable);
+        });
+
+        try
+        {
+            await started.Task.WaitAsync(Wait);
+            lifecycle.Settle(NativeSubscriptionOrigin.ServerClosed, firstFailure);
+            await cancelled.Task.WaitAsync(Wait);
+            await response.Disposed.Task.WaitAsync(Wait);
+            Check(!lifecycle.Completion.IsCompleted, "Completion must await the still-running producer.");
+            var refused = false;
+            try { using var premature = delivery.Open<string, Cursor>(); }
+            catch (ObservationFailure failure) { refused = failure.Kind == ObservationFailureKind.Admission; }
+            Check(refused, "A stopped observation must hold its admission until the producer settles.");
+        }
+        finally { stop.TrySetResult(true); }
+
+        var result = await lifecycle.Completion.WaitAsync(Wait);
+        Check(result.Origin == NativeSubscriptionOrigin.ServerClosed && ReferenceEquals(result.Failure, firstFailure),
+            "Neither cleanup exceptions nor the later producer outcome may replace the first outcome.");
+        using var replacement = delivery.Open<string, Cursor>();
+        replacement.Complete();
+    }
+
+    [Test]
     public async Task PulledReadFailuresAreClassifiedWithoutForeignText()
     {
         foreach (var (error, origin, kind) in new (Exception, NativeSubscriptionOrigin, NativeSubscriptionFailureKind)[]
@@ -126,9 +188,13 @@ public sealed class ObservationLifecycleTests
             { Origin: NativeSubscriptionOrigin.LocalFailure, Failure.Kind: NativeSubscriptionFailureKind.RecordLimit });
     }
 
-    private sealed class Response : IDisposable
+    private sealed class Response(bool throwOnDispose = false) : IDisposable
     {
         public TaskCompletionSource<bool> Disposed { get; } = Signal<bool>();
-        public void Dispose() => Disposed.TrySetResult(true);
+        public void Dispose()
+        {
+            Disposed.TrySetResult(true);
+            if (throwOnDispose) throw new IOException("Response disposal failed.");
+        }
     }
 }

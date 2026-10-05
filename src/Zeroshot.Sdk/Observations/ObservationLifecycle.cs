@@ -34,8 +34,14 @@ internal sealed class ObservationLifecycle<T>(ObservationQueue<T, Cursor> queue)
         var pump = PumpAsync(read, reading);
         _ = SettleAsync(async () =>
         {
-            reading.Cancel();
-            response.Dispose(); // Closes only this observation's connection, also unblocking a read that ignores cancellation.
+            // A reader's cancellation callbacks and the response's disposal are foreign cleanup. Attempt both,
+            // even if either throws; neither may replace the outcome or strand completion and admission.
+            try { reading.Cancel(); }
+            catch (Exception) { }
+            // Closes only this observation's connection, also unblocking a read that ignores cancellation.
+            try { response.Dispose(); }
+            catch (Exception) { }
+            // Cancellation/disposal requests do not prove that the producer has stopped. Keep its slot until it does.
             await pump.ConfigureAwait(false);
         }, _ => { reading.Dispose(); return Task.CompletedTask; });
     }
@@ -157,6 +163,7 @@ internal sealed class ObservationLifecycle<T>(ObservationQueue<T, Cursor> queue)
             result = outcome;
         }
         try { await release(result).ConfigureAwait(false); }
+        catch (Exception) { } // Cleanup cannot change the outcome or escape this detached settlement task.
         finally
         {
             queue.Complete();
