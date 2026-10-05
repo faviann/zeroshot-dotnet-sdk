@@ -105,6 +105,9 @@ tags and on demand. `tools/qualification` does the work, and each step also runs
    hashes. A missing, duplicated or failed platform refuses it, and so does a skipped test
    other than named-pipe tests off Windows and Ctrl+C tests on Windows. The job writes
    `qualification.json`, which combines the evidence.
+   The gate requires exactly one passing result for each declared check and revalidates
+   suite counts, exit status, named skips and CLI output coverage from the recorded details.
+   Missing or contradictory suite details refuse qualification even when marked as passed.
 
 The compatibility baseline is the latest `v*` release tag that precedes the candidate in
 NuGet version order, which places `0.1.0-preview.1` and `0.2.0-preview.1` below every

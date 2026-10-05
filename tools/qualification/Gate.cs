@@ -34,20 +34,10 @@ internal static class Gate
             Require(platform.ProcessArchitecture == architecture.ToString() && platform.OsArchitecture == architecture.ToString(),
                 $"ran a {platform.ProcessArchitecture} process on {platform.OsArchitecture}, not native {architecture}.");
             Require(platform.RuntimeVersion.StartsWith("10.", StringComparison.Ordinal), $"ran .NET {platform.RuntimeVersion}, not .NET 10.");
-            foreach (var name in PlatformLeg.Checks)
-                Require(leg.Checks.Count(check => check.Name == name && check.Passed) == 1, $"check {name} did not pass.");
-            foreach (var check in leg.Checks.Where(check => check.Detail is not null && PlatformLeg.Suites.Contains(check.Name)))
-            {
-                try
-                {
-                    foreach (var skipped in JsonFile.Parse<SuiteSummary>(check.Detail!, $"{runner} {check.Name} detail").SkippedTests)
-                        Require(Required.MaySkip(check.Name, os, skipped), $"{check.Name} skipped {skipped}, which must run on {os}.");
-                }
-                catch (QualificationException malformed) { Require(false, malformed.Message); }
-            }
+            foreach (var failure in QualificationChecks.Failures(leg.Checks, os)) Require(false, failure);
             Require(leg.Passed, "the leg did not pass.");
             platforms.Add(new(runner, platform.Os, platform.OsDetail, platform.ProcessArchitecture, platform.OsArchitecture, platform.RuntimeVersion, platform.SdkVersion,
-                [.. leg.Checks.Select(check => new CheckSummary(check.Name, check.Passed, check.Detail))]));
+                [.. leg.Checks.Where(check => check is not null).Select(check => new CheckSummary(check.Name, check.Passed, check.Detail))]));
         }
 
         var native = Native(Path.Combine(artifacts, "native-witness"), candidate, failures);

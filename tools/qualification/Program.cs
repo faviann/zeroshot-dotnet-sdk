@@ -52,30 +52,6 @@ internal static class Required
         ("macos-15", "macOS 15", Architecture.Arm64),
     ];
 
-    /// <summary>The only tests a platform may skip: named-pipe tests run only on Windows, Ctrl+C (SIGINT) tests only off it.</summary>
-    public static bool MaySkip(string check, string os, string test)
-    {
-        var method = test.Split('(')[0];
-        return os.StartsWith("Windows", StringComparison.Ordinal)
-            ? check.StartsWith("cli-", StringComparison.Ordinal) && WindowsSkips.Contains(method)
-            : check == "sdk-tests" && PosixSkips.Contains(method);
-    }
-
-    private static readonly string[] PosixSkips =
-    [
-        "OnlyExactLocalPipesAreAcceptedAndConnectingIsCancellableAndBounded", "OwnedPipeIsClosedOnDisposalAndABorrowedPipeStaysOpen",
-        "PipeThatIsNotPrivateToThisUserIsRefusedBeforeAnythingIsSent", "PrivatePipeCarriesOecpUntilTheControllerDisconnects",
-    ];
-
-    private static readonly string[] WindowsSkips =
-    [
-        "CtrlCDetachesWithExit130AndTheLastDeliveredCursor", "CtrlCAfterTheSubmissionWasSentIsAnUnknownOutcome",
-        "CtrlCWhileWaitingAfterAcknowledgementIsExit130AndKeepsTheAcknowledgedRun", "CtrlCBeforeTheForceIsSentIsExit130WithNothingSent",
-    ];
-
-    /// <summary>Declared output only Ctrl+C tests produce, which cannot run on Windows.</summary>
-    public static bool MayBeUnobserved(bool windows, string entry) => windows && entry == "error attempt.cancelled";
-
     public const string Repository = "https://github.com/faviann/zeroshot-dotnet-sdk";
     // The native pin, from native.props through this tool's assembly metadata.
     public static readonly string NativeVersion = Pin("ZeroshotNativeVersion");
