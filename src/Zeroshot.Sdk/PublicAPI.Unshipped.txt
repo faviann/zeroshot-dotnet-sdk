@@ -1,1 +1,4 @@
 #nullable enable
+Microsoft.Extensions.DependencyInjection.ZeroshotServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.ZeroshotServiceCollectionExtensions.AddZeroshotClient(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Zeroshot.ZeroshotClientOptions!>! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ZeroshotServiceCollectionExtensions.AddZeroshotClient(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Zeroshot.ZeroshotClientOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

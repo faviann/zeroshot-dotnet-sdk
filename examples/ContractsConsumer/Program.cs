@@ -6,7 +6,8 @@ using Zeroshot.Native.Contracts;
 
 var assembly = typeof(PreparedSubmission).Assembly;
 if (assembly.GetName().Name != "Zeroshot.Client" ||
-    assembly.GetExportedTypes().Any(t => t.Namespace is not ("Zeroshot" or "Zeroshot.Native" or "Zeroshot.Native.Contracts")))
+    assembly.GetExportedTypes().Any(t => t.Namespace is not ("Zeroshot" or "Zeroshot.Native" or "Zeroshot.Native.Contracts"
+        or "Microsoft.Extensions.DependencyInjection")))
     throw new InvalidOperationException("Unexpected public package surface.");
 
 var graph = new GraphSpec
