@@ -36,7 +36,7 @@ while (definition.Phase != RunPhase.Finished)
     await Task.Delay(100, token);
     definition = await native.Private.GetHistoryDefinitionAsync(runId, operatorAuthority, token);
 }
-Check(definition.Title == inspection.Submission.Title && definition.Source == inspection.Submission.Source, "private definition");
+Check(definition.Title == inspection.Submission.Title && definition.Source == inspection.Submission.Source.Value, "private definition");
 var page = await native.Private.GetHistoryPageAsync(runId, operatorAuthority, cancellationToken: token);
 Check(page.Complete && page.NextCursor == definition.Cursor && page.Events[^1].Event is TerminalHistoryEvent, "private complete page");
 var end = await native.Private.GetHistoryPageAsync(runId, operatorAuthority, page.NextCursor, token);
@@ -76,7 +76,7 @@ await using (var connection = await native.ConnectOecpAsync(session, token))
 {
     Check((await connection.InitializeAsync(cancellationToken: token)).ProtocolVersion == OecpConnection.ProtocolVersion, "private initialize");
     cluster = await connection.Cluster.GetAsync(cancellationToken: token);
-    status = await connection.Runs.StatusAsync(runId, inspection.Submission.Source, cancellationToken: token);
+    status = await connection.Runs.StatusAsync(runId, inspection.Submission.Source.Value, cancellationToken: token);
 }
 Check(cluster.Spec is null && status.RunId == runId && status.Status is FinishedRunStatus, "private OECP inspection");
 

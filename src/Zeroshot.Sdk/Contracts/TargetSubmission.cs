@@ -15,8 +15,43 @@ public record TargetRunCredentials : TargetHttpContract
     [JsonPropertyName("githubToken")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? GithubToken { get; init; }
+    /// <summary>HTTPS or SSH authority for a source with a generic Git remote.</summary>
+    [JsonPropertyName("gitCredentials")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GitTransportCredentials? GitCredentials { get; init; }
 
     internal override void Validate() => StaticConnectionValues.ValidateRun(Connections);
+}
+
+/// <summary>
+/// Fresh Git transport authority, sent beside a run and never part of its source or submission identity. Targets accept it
+/// only when discovery advertises <c>openengine.git-transport/v1</c>. Default formatting omits the values.
+/// </summary>
+[WireContract("GitTransportCredentials")]
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
+[JsonDerivedType(typeof(HttpsGitTransportCredentials), "https")]
+[JsonDerivedType(typeof(SshGitTransportCredentials), "ssh")]
+public abstract record GitTransportCredentials : NativeContract
+{
+    private protected GitTransportCredentials() { }
+}
+
+[WireContract("GitTransportCredentials")]
+public sealed record HttpsGitTransportCredentials : GitTransportCredentials
+{
+    [JsonPropertyName("username")]
+    public required string Username { get; init; }
+    [JsonPropertyName("password")]
+    public required string Password { get; init; }
+}
+
+[WireContract("GitTransportCredentials")]
+public sealed record SshGitTransportCredentials : GitTransportCredentials
+{
+    [JsonPropertyName("privateKey")]
+    public required string PrivateKey { get; init; }
+    [JsonPropertyName("knownHosts")]
+    public required string KnownHosts { get; init; }
 }
 
 /// <summary>The complete fixed target HTTP envelope; no identity or content is generated at send time.</summary>

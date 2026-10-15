@@ -22,7 +22,7 @@ so that the CLI and the SDK have the same version and source commit:
 ```sh
 git clone https://github.com/faviann/zeroshot-dotnet-sdk.git
 cd zeroshot-dotnet-sdk
-git checkout v10.10.0.1-preview.1
+git checkout v10.12.0.1-preview.1
 dotnet build src/Zeroshot.Cli --configuration Release
 dotnet run --project src/Zeroshot.Cli --configuration Release --no-build -- --version
 ```
@@ -31,9 +31,9 @@ To use it as a .NET tool, pack it and install it from that local folder:
 
 ```sh
 dotnet pack src/Zeroshot.Cli --configuration Release --output ./packages
-dotnet tool install --global Zeroshot.Cli --version 10.10.0.1-preview.1 --source ./packages
-dotnet tool install --local Zeroshot.Cli --version 10.10.0.1-preview.1 --source ./packages   # needs a tool manifest
-dotnet tool install Zeroshot.Cli --version 10.10.0.1-preview.1 --source ./packages --tool-path ./tools
+dotnet tool install --global Zeroshot.Cli --version 10.12.0.1-preview.1 --source ./packages
+dotnet tool install --local Zeroshot.Cli --version 10.12.0.1-preview.1 --source ./packages   # needs a tool manifest
+dotnet tool install Zeroshot.Cli --version 10.12.0.1-preview.1 --source ./packages --tool-path ./tools
 ```
 
 Run a local tool as `dotnet tool run zeroshot-dotnet -- ARGUMENTS`. Without `--`,
@@ -42,13 +42,13 @@ and its `Zeroshot.Client` library's versions, each followed by `+` and the sourc
 then the one native release that library binds:
 
 ```text
-zeroshot-dotnet 10.10.0.1-preview.1+<commit>
-Zeroshot.Client 10.10.0.1-preview.1+<commit>
-native Zeroshot 10.10.0 3ee1192cec359a0b997f464e703a936e8b67d63c
+zeroshot-dotnet 10.12.0.1-preview.1+<commit>
+Zeroshot.Client 10.12.0.1-preview.1+<commit>
+native Zeroshot 10.12.0 928de8ff918488749ca9d23e0a7349873401b7f7
 ```
 
 These are SDK versions. Each one [mirrors](../../README.md#versioning) the native release
-it supports, followed by an SDK revision: `10.10.0.1` supports native 10.10.0 only, as the
+it supports, followed by an SDK revision: `10.12.0.1` supports native 10.12.0 only, as the
 [native compatibility table](../../README.md#native-compatibility) lists, and its
 configurations declare that release. The CLI is a preview.
 
@@ -199,7 +199,7 @@ Secret values are never stored in this file. Unknown or duplicate fields are ref
 {
   "schema": "zeroshot-dotnet/target-config/v1",
   "target": "https://target.example/",
-  "nativeBinding": { "provenance": "caller-supplied", "release": "10.10.0", "sourceRevision": "3ee1192cec359a0b997f464e703a936e8b67d63c" },
+  "nativeBinding": { "provenance": "caller-supplied", "release": "10.12.0", "sourceRevision": "928de8ff918488749ca9d23e0a7349873401b7f7" },
   "credentials": {
     "targetBearerEnvironment": "ZEROSHOT_TARGET_TOKEN",
     "githubTokenEnvironment": "ZEROSHOT_GITHUB_TOKEN",

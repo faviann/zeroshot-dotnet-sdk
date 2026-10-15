@@ -56,8 +56,9 @@ public sealed class NativeHostedRecoveryClient
         => client.MutateAsync(Resume, () =>
         {
             ArgumentNullException.ThrowIfNull(successorRunId);
-            return new HttpCall(Route(discovery, credentials, Routes.Resume, runId),
-                RunResumeParams.SerializeUtf8(runId, successorRunId, from, runCredentials));
+            var route = Route(discovery, credentials, Routes.Resume, runId);
+            HttpCapability.RequireGitTransport(discovery, null, runCredentials?.GitCredentials);
+            return new HttpCall(route, RunResumeParams.SerializeUtf8(runId, successorRunId, from, runCredentials));
         }, credentials, cancellationToken, validate: result => result.Require(runId, successorRunId));
 
     /// <summary>Sends one request to destroy the retained recovery workspace. The run and its history remain.</summary>

@@ -368,4 +368,26 @@ public sealed class HttpDiscoveryTests
             throw new IOException("Untrusted cleanup detail.");
         }
     }
+
+    [Test]
+    public void RuntimeLaneAndGitTransportMarkersAreStrictKindDescriptors()
+    {
+        var direct = JsonNode.Parse(Direct)!;
+        direct["extensions"] = JsonNode.Parse("""{"node_runtime_lanes":{"kind":"openengine.node-runtime-lanes/v1"},"git_transport":{"kind":"openengine.git-transport/v1"}}""");
+        var discovery = NativeJson.DeserializeUtf8<TargetDiscoveryDocument>(Encoding.UTF8.GetBytes(direct.ToJsonString()));
+        Check(discovery.Extensions is { NodeRuntimeLanes.Kind: "openengine.node-runtime-lanes/v1", GitTransport.Kind: "openengine.git-transport/v1" });
+        Check(JsonNode.DeepEquals(direct, JsonNode.Parse(NativeJson.SerializeUtf8(discovery))));
+        // Another kind still decodes; operations that need the marker read it as unsupported (HttpProfileTests).
+        direct["extensions"]!["node_runtime_lanes"]!["kind"] = "openengine.node-runtime-lanes/v2";
+        Check(NativeJson.DeserializeUtf8<TargetDiscoveryDocument>(Encoding.UTF8.GetBytes(direct.ToJsonString())).Extensions.NodeRuntimeLanes!.Kind ==
+            "openengine.node-runtime-lanes/v2");
+        foreach (var marker in new[] { "node_runtime_lanes", "git_transport" })
+        {
+            var bad = direct.DeepClone();
+            bad["extensions"]![marker]!["detail"] = true;
+            try { NativeJson.DeserializeUtf8<TargetDiscoveryDocument>(Encoding.UTF8.GetBytes(bad.ToJsonString())); }
+            catch (JsonException) { continue; }
+            throw new InvalidOperationException($"{marker} accepted an unknown field.");
+        }
+    }
 }

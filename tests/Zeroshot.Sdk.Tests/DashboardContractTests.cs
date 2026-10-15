@@ -38,7 +38,7 @@ public sealed class DashboardContractTests
         var bootstrap = NativeJson.DeserializeUtf8<DashboardBootstrap>(bytes);
         Check(bootstrap.Workspace.Kind == DashboardWorkspaceKind.Target && bootstrap.Workspace.Id == "01a0e31e-4f6e-7f51-b114-59a1df1c2c17");
         Check(bootstrap.Templates.Select(t => t.Id).SequenceEqual(["single-worker:none", "software-change:push"]));
-        Check(bootstrap.Templates[1].RuntimeBindings["deliver"] is GitDeliveryBinding);
+        Check(NativeJson.DeserializeUtf8<NodeRuntimeBinding>(JsonSerializer.SerializeToUtf8Bytes(bootstrap.Templates[1].RuntimeBindings["deliver"])) is GitDeliveryBinding);
         var agent = (DashboardAgentWorker)bootstrap.Workers[0];
         Check(agent.WorkerRefs.IsEmpty && agent.RuntimeBinding.GetProperty("model").GetString() == "");
         var push = (DashboardGitDeliveryWorker)bootstrap.Workers[1];
@@ -55,7 +55,7 @@ public sealed class DashboardContractTests
             x => x["workspace"]!["id"] = "01A0E31E-4F6E-7F51-B114-59A1DF1C2C17",
             x => x["templates"]![0]!.AsObject().Remove("runtimeBindings"),
             x => x["templates"]![0]!["graph"]!["profile"] = "unknown",
-            x => x["templates"]![1]!["runtimeBindings"]!["deliver"]!["kind"] = "other",
+            x => x["templates"]![1]!["runtimeBindings"]!["deliver"] = "draft",
             x => x["templates"]![1]!["runtimeBindings"]!["not a node"] = x["templates"]![1]!["runtimeBindings"]!["deliver"]!.DeepClone(),
             x => x["workers"]![0]!["runtimeKind"] = "shell",
             x => x["workers"]![0]!["node"] = x["workers"]![1]!["node"]!.DeepClone(),
@@ -133,5 +133,24 @@ public sealed class DashboardContractTests
         Check(NativeJson.DeserializeUtf8<DashboardValidation>("""{"valid":true}"""u8).Valid);
         Rejected<DashboardValidation>(JsonNode.Parse("""{"valid":false}""")!);
         Rejected<DashboardProfileDocument>(new JsonObject { ["graph"] = graph.DeepClone(), ["runtime"] = JsonNode.Parse(draftRuntime.GetRawText()) });
+    }
+
+    [Test]
+    public async Task BootstrapKeepsBlankWorkerDraftsAndLoopIterationInputs()
+    {
+        var original = JsonNode.Parse(await File.ReadAllBytesAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures/dashboard-bootstrap.json")))!;
+        // Native 10.12.0 software-change templates retain one worker session through a blank-model draft.
+        var draft = JsonNode.Parse("""{"kind":"agent","model":"","sessionScope":"node_instance"}""")!;
+        original["templates"]![1]!["runtimeBindings"]!["worker"] = draft.DeepClone();
+        // Auto-research templates read their loop limit from the run input.
+        var graph = JsonNode.Parse(await File.ReadAllBytesAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures/graphs.json")))![8]!.DeepClone();
+        graph["root"]!["maxIterationsInput"] = new JsonArray("max_rounds");
+        original["templates"]![0]!["graph"] = graph;
+        var bootstrap = NativeJson.DeserializeUtf8<DashboardBootstrap>(Encoding.UTF8.GetBytes(original.ToJsonString()));
+        var worker = bootstrap.Templates[1].RuntimeBindings["worker"];
+        Check(worker.GetProperty("model").GetString() == "" && worker.GetProperty("sessionScope").GetString() == "node_instance");
+        Check(((LoopNode)bootstrap.Templates[0].Graph.Root).MaxIterationsInput.Value!.Value.Single() == "max_rounds");
+        var written = JsonNode.Parse(NativeJson.SerializeUtf8(bootstrap))!;
+        Check(JsonNode.DeepEquals(written["templates"]![1]!["runtimeBindings"]!["worker"], draft), "The draft binding changed.");
     }
 }

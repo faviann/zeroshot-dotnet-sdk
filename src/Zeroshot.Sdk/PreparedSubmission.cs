@@ -43,7 +43,7 @@ public sealed class PreparedSubmission
         var fresh = NativeJson.SerializeUtf8(new TargetRunCredentials
         {
             Connections = credentials.Connections, ConnectionResolver = credentials.ConnectionResolver,
-            GithubToken = credentials.GithubToken
+            GithubToken = credentials.GithubToken, GitCredentials = credentials.GitCredentials
         });
         var end = utf8.Length - 1;
         while (utf8[end] != (byte)'}') end--;

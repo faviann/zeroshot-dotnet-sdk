@@ -15,7 +15,8 @@ public sealed record RunRequest
     public required GraphSpec Graph { get; init; }
     public required RuntimePlan Runtime { get; init; }
     public required JsonElement InitialInput { get; init; }
-    public required ResolvedSource Source { get; init; }
+    /// <summary>The repository snapshot to run against. Omitted or null runs without one, as native local-folder runs do.</summary>
+    public Optional<ResolvedSource?> Source { get; init; }
     /// <summary>Omitted, explicit null and a present environment stay distinct.</summary>
     public Optional<RuntimeEnvironment?> Environment { get; init; }
     /// <summary>The proposed run ID; a canonical UUIDv7 is generated when null.</summary>

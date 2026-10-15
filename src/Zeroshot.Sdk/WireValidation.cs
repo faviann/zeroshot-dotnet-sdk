@@ -84,6 +84,14 @@ internal static class WireValidation
         {
             foreach (var node in value.GetProperty("nodes").EnumerateObject()) _ = new NodeName(node.Name);
         },
+        // Native bounds these in UTF-8 bytes; the schemas count characters.
+        ["ResolvedGitRemote"] = value => Utf8Bound(value, "url", 2048),
+        ["SourceForgeIdentity"] = value => Utf8Bound(value, "provider", 128),
+        // Native also admits each value as a static connection value (StaticConnectionValues::new).
+        ["GitTransportCredentials"] = value =>
+        {
+            foreach (var field in value.EnumerateObject()) if (field.Name != "kind") Utf8Bound(value, field.Name, 64 * 1024);
+        },
         ["RuntimeEnvironment"] = value =>
         {
             if (!value.TryGetProperty("variables", out var variables)) return;
@@ -128,6 +136,12 @@ internal static class WireValidation
         }
         else if (value.ValueKind == JsonValueKind.Array && schema["items"] is { } items)
             foreach (var item in value.EnumerateArray()) CheckNative(item, items);
+    }
+
+    private static void Utf8Bound(JsonElement value, string property, int bytes)
+    {
+        if (value.TryGetProperty(property, out var text) && text.ValueKind == JsonValueKind.String &&
+            Encoding.UTF8.GetByteCount(text.GetString()!) > bytes) throw new JsonException("Native byte bound exceeded.");
     }
 
     private static void CheckConnections(JsonElement connections)

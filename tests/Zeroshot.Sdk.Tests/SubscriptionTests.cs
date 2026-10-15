@@ -292,4 +292,24 @@ public sealed class SubscriptionTests
             await peer.Finished;
         }
     }
+
+    [Test]
+    public async Task AWatchKeepsTheFirstRecordsMissingSource()
+    {
+        var sourceless = RunWatchRecord.Remove(RunWatchRecord.IndexOf("\"source\"", StringComparison.Ordinal),
+            RunWatchRecord.IndexOf("\"size\"", StringComparison.Ordinal) - RunWatchRecord.IndexOf("\"source\"", StringComparison.Ordinal));
+        await using var peer = new Peer(async socket =>
+        {
+            await Reply(socket, await Read(socket), Establishment("watch"));
+            await Event(socket, sourceless); await Event(socket, sourceless);
+            await Event(socket, RunWatchRecord);
+            await Read(socket);
+        });
+        using var client = peer.Client(); await using var connection = await client.ConnectOecpAsync(peer.Session);
+        await using var watch = await connection.Runs.WatchAsync(new() { RunId = new("run-1") });
+        var delivered = new List<RunWatchEventNotification>();
+        await Failure(async () => { await foreach (var record in watch.ReadAllAsync()) delivered.Add(record); }, NativeSubscriptionFailureKind.Protocol);
+        Check(delivered.Count == 2 && delivered.All(record => record.Source is null), "A record that gains a source was delivered.");
+        await peer.Finished;
+    }
 }

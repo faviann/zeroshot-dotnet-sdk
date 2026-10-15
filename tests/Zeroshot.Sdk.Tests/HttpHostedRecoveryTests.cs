@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+using System.Collections.Immutable;
 using System.Text;
 using TUnit.Core;
 using Zeroshot.Native;
@@ -98,5 +100,30 @@ public sealed class HttpHostedRecoveryTests
         var oversized = await bounded.HostedRecovery.ResumeAsync(Discovery(Capability), new(Run), new(Successor), Hosted);
         Check(oversized is { Outcome: NativeAttemptOutcome.Unknown, Failure: NativeHttpException { Kind: NativeHttpFailureKind.SizeLimit } });
         await Failure(bounded.HostedRecovery.CheckpointsAsync(Discovery(Capability), Checkpoints, Hosted), NativeHttpFailureKind.SizeLimit);
+    }
+
+    [Test]
+    public async Task ResumeWithGitCredentialsNeedsTheGitTransportMarker()
+    {
+        var bodies = new List<JsonNode>();
+        using var handler = new Handler(async (request, token) =>
+        {
+            bodies.Add(JsonNode.Parse(await request.Content!.ReadAsByteArrayAsync(token))!);
+            return Reply(request, Resumed);
+        });
+        using var client = ClientFor(handler);
+        var fresh = new TargetRunCredentials
+        {
+            Connections = ImmutableDictionary<string, ImmutableDictionary<string, string>>.Empty,
+            GitCredentials = new HttpsGitTransportCredentials { Username = "git", Password = "PASSWORD-CANARY" }
+        };
+        TargetDiscoveryDocument With(TargetGitTransportDiscovery? git)
+            => Discovery(Capability) with { Extensions = Discovery(Capability).Extensions with { GitTransport = git } };
+        foreach (var marker in new TargetGitTransportDiscovery?[] { null, new() { Kind = "openengine.git-transport/v2" } })
+            await Invalid(() => client.HostedRecovery.ResumeAsync(With(marker), new(Run), new(Successor), Hosted, runCredentials: fresh), "PASSWORD-CANARY");
+        Check(handler.Calls == 0, "Git credentials were sent to a target without the marker.");
+        var resumed = await client.HostedRecovery.ResumeAsync(With(new() { Kind = "openengine.git-transport/v1" }), new(Run), new(Successor), Hosted, runCredentials: fresh);
+        Check(resumed.Outcome == NativeAttemptOutcome.Acknowledged && JsonNode.DeepEquals(bodies.Single(),
+            JsonNode.Parse("""{"runId":"run/1","successorRunId":"run-2","gitCredentials":{"kind":"https","username":"git","password":"PASSWORD-CANARY"}}""")));
     }
 }

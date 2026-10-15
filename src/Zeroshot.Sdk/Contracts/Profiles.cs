@@ -108,7 +108,7 @@ public sealed record RunProfileDefaultResult : TargetHttpContract
     public RunProfileName? Name { get; init; }
 }
 
-/// <summary>One hosted run resolved from a stored profile. Default formatting omits connection values and the GitHub token.</summary>
+/// <summary>One hosted run resolved from a stored profile. Default formatting omits connection values and credentials.</summary>
 public sealed record RunProfileRunRequest : TargetHttpContract
 {
     [JsonPropertyName("runId")]
@@ -133,6 +133,10 @@ public sealed record RunProfileRunRequest : TargetHttpContract
     [JsonPropertyName("githubToken")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? GithubToken { get; init; }
+    /// <summary>HTTPS or SSH authority for a source with a generic Git remote.</summary>
+    [JsonPropertyName("gitCredentials")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GitTransportCredentials? GitCredentials { get; init; }
 
     internal override void Validate()
     {

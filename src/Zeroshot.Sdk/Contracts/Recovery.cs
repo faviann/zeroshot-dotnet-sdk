@@ -102,6 +102,9 @@ internal sealed record RunResumeParams : NativeContract
     [JsonPropertyName("githubToken")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? GithubToken { get; init; }
+    [JsonPropertyName("gitCredentials")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GitTransportCredentials? GitCredentials { get; init; }
 
     // An empty connection map is omitted, as native does.
     internal static byte[] SerializeUtf8(RunId runId, RunId successorRunId, RunResumeFrom? from, TargetRunCredentials? credentials)
@@ -111,7 +114,8 @@ internal sealed record RunResumeParams : NativeContract
         {
             RunId = runId, SuccessorRunId = successorRunId, From = from,
             Connections = credentials is { Connections.IsEmpty: false } ? credentials.Connections : null,
-            ConnectionResolver = credentials?.ConnectionResolver, GithubToken = credentials?.GithubToken
+            ConnectionResolver = credentials?.ConnectionResolver, GithubToken = credentials?.GithubToken,
+            GitCredentials = credentials?.GitCredentials
         });
     }
 }

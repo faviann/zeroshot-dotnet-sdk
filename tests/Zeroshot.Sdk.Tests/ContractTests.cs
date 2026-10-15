@@ -92,7 +92,7 @@ public sealed class ContractTests
         Check(export.SequenceEqual(expected), "Import changed retained bytes.");
         Array.Fill(export, (byte)'x');
         Check(prepared.ExportUtf8().SequenceEqual(expected), "Export exposed mutable retained storage.");
-        Check(prepared.Submission.Source.Revision.Value == new string('a', 40), "Source changed.");
+        Check(prepared.Submission.Source.Value!.Revision.Value == new string('a', 40), "Source changed.");
         Check(prepared.Submission.SubmissionKey.Value == "debug-fixture", "Key changed.");
         Check(prepared.Submission.InitialInput.GetProperty("z").GetString() == "must-not-be-retained", "Input changed.");
         Check(!prepared.ToString().Contains("must-not-be-retained") && !prepared.Submission.ToString().Contains("must-not-be-retained"), "Default formatting exposed payload.");
@@ -186,5 +186,68 @@ public sealed class ContractTests
             parent[path.Split('.')[^1]] = JsonNode.Parse(value);
             Reject(() => NativeJson.DeserializeUtf8<WorkerDescriptor>(Encoding.UTF8.GetBytes(worker.ToJsonString())));
         }
+    }
+
+    [Test]
+    public void LoopIterationInputsAndRuntimeLanesRoundTrip()
+    {
+        // Native 10.12.0 LoopNode.max_iterations_input: a run-input path that replaces maxIterations.
+        var graph = JsonNode.Parse(Fixture("graphs.json"))![8]!;
+        graph["root"]!["maxIterationsInput"] = new JsonArray("limits", "rounds");
+        var spec = NativeJson.DeserializeUtf8<GraphSpec>(Encoding.UTF8.GetBytes(graph.ToJsonString()));
+        Check(((LoopNode)spec.Root).MaxIterationsInput.Value!.Value.SequenceEqual(["limits", "rounds"]), "The loop input path was lost.");
+        Check(JsonNode.DeepEquals(JsonNode.Parse(NativeJson.SerializeUtf8(spec))!["root"]!["maxIterationsInput"], new JsonArray("limits", "rounds")));
+        graph["root"]!["maxIterationsInput"] = null;
+        Check(((LoopNode)NativeJson.DeserializeUtf8<GraphSpec>(Encoding.UTF8.GetBytes(graph.ToJsonString())).Root).MaxIterationsInput is { HasValue: true, Value: null });
+        foreach (var invalid in new JsonNode[] { new JsonArray(), new JsonArray([.. Enumerable.Range(0, 65).Select(i => (JsonNode)("f" + i))]), new JsonArray("1st") })
+        {
+            graph["root"]!["maxIterationsInput"] = invalid;
+            Reject(() => NativeJson.DeserializeUtf8<GraphSpec>(Encoding.UTF8.GetBytes(graph.ToJsonString())));
+        }
+        Check(Encoding.UTF8.GetString(NativeSchemas.ExportCompiledIrUtf8()).Contains("\"maxIterationsInput\""), "The compiled IR schema lacks the loop input.");
+
+        // Native 10.12.0 RuntimeLane: an agent node's own harness and provider.
+        foreach (var (lane, expected) in new (string, RuntimeLane)[]
+        {
+            ("""{"harness":"copilot","provider":"github"}""", new CopilotLane { Provider = CopilotProvider.Github }),
+            ("""{"harness":"codex","provider":"openai"}""", new CodexLane { Provider = CodexProvider.OpenAi }),
+            ("""{"harness":"claude","provider":"anthropic"}""", new ClaudeLane { Provider = ClaudeProvider.Anthropic })
+        })
+        {
+            var wire = $$"""{"kind":"agent","lane":{{lane}},"model":"opaque-model"}""";
+            var binding = (AgentBinding)NativeJson.DeserializeUtf8<NodeRuntimeBinding>(Encoding.UTF8.GetBytes(wire));
+            Check(binding.Lane.Value == expected && Encoding.UTF8.GetString(NativeJson.SerializeUtf8(binding)) == wire, lane);
+        }
+        foreach (var invalid in new[]
+        {
+            """{"kind":"agent","lane":{"harness":"codex","provider":"anthropic"},"model":"opaque-model"}""",
+            """{"kind":"agent","lane":{"harness":"claude"},"model":"opaque-model"}""",
+            """{"kind":"agent","lane":{"harness":"claude","provider":"anthropic","model":"m"},"model":"opaque-model"}""",
+            """{"kind":"git_delivery","connections":{"github":["GITHUB_TOKEN"]},"pullRequestFeedback":"ignore","lane":{"harness":"claude","provider":"anthropic"}}"""
+        })
+            Reject(() => NativeJson.DeserializeUtf8<NodeRuntimeBinding>(Encoding.UTF8.GetBytes(invalid)));
+    }
+
+    [Test]
+    public void GitTransportCredentialsAreAClosedRedactedUnion()
+    {
+        var https = NativeJson.DeserializeUtf8<GitTransportCredentials>("""{"kind":"https","username":"git","password":"PASSWORD-CANARY"}"""u8);
+        Check(https is HttpsGitTransportCredentials { Username: "git", Password: "PASSWORD-CANARY" } && !https.ToString().Contains("CANARY"));
+        GitTransportCredentials ssh = new SshGitTransportCredentials { PrivateKey = "KEY-CANARY", KnownHosts = "gitlab.example ssh-ed25519 AAAA" };
+        Check(Encoding.UTF8.GetString(NativeJson.SerializeUtf8(ssh)) ==
+            """{"kind":"ssh","privateKey":"KEY-CANARY","knownHosts":"gitlab.example ssh-ed25519 AAAA"}""" && !ssh.ToString().Contains("CANARY"));
+        foreach (var invalid in new[]
+        {
+            """{"kind":"https","username":"git"}""", """{"kind":"ftp","username":"git","password":"p"}""",
+            """{"kind":"https","username":"","password":"p"}""", """{"kind":"https","username":"g\u0000it","password":"p"}""",
+            """{"kind":"ssh","privateKey":"k","knownHosts":"h","username":"git"}"""
+        })
+            Reject(() => NativeJson.DeserializeUtf8<GitTransportCredentials>(Encoding.UTF8.GetBytes(invalid)));
+        // Native admits each value as a static connection value: at most 64 KiB of UTF-8, fewer than the schema's 65536 characters.
+        Reject(() => NativeJson.SerializeUtf8<GitTransportCredentials>(new SshGitTransportCredentials { PrivateKey = new string('é', 40_000), KnownHosts = "h" }));
+
+        var forge = NativeJson.DeserializeUtf8<SourceForgeIdentity>("""{"provider":"gitlab","repository":"group/sub/project"}"""u8);
+        Check(forge.Provider == "gitlab" && forge.Repository.Value == "group/sub/project");
+        Reject(() => NativeJson.SerializeUtf8(forge with { Provider = new string('é', 100) }));
     }
 }

@@ -50,8 +50,9 @@ HttpClient is not reused as a WebSocket transport. There is no credential refres
 `ClusterStatus` and native `RunStatus` remain distinct. Native run status includes
 all active executions or the complete terminal result and metadata, including token
 usage. `RunStatusResult` preserves source identity, size, cursor and workspace
-recovery. `StatusAsync` requires the requested run ID to match; supplying
-`expectedSource` additionally checks repository, branch and revision. Native empty
+recovery. A run without a source, such as a native local-folder run, has a null
+`Source`. `StatusAsync` requires the requested run ID to match; supplying
+`expectedSource` additionally checks repository, branch, revision and remote. Native empty
 cluster `get` remains empty even when runs exist. Status does not prove a submission
 key, retained request digest or terminal-event durability.
 
@@ -84,8 +85,8 @@ native `run/force`; disposing a connection never stops a native run.
 responses, fragmentation, bounds, cancellation, disconnects and liveness.
 `OecpContractTests` verifies the full source-backed inspection closure in
 `Schemas/oecp.schema.json`, extracted from the pinned
-[`schema.json`](https://github.com/the-open-engine/zeroshot/blob/3ee1192cec359a0b997f464e703a936e8b67d63c/protocol/openengine-cluster/v1/schema.json)
-and [`native-v2-observation.schema.json`](https://github.com/the-open-engine/zeroshot/blob/3ee1192cec359a0b997f464e703a936e8b67d63c/protocol/openengine-cluster/v1/native-v2-observation.schema.json).
+[`schema.json`](https://github.com/the-open-engine/zeroshot/blob/928de8ff918488749ca9d23e0a7349873401b7f7/protocol/openengine-cluster/v1/schema.json)
+and [`native-v2-observation.schema.json`](https://github.com/the-open-engine/zeroshot/blob/928de8ff918488749ca9d23e0a7349873401b7f7/protocol/openengine-cluster/v1/native-v2-observation.schema.json).
 Shared definitions remain in `contracts.schema.json`; `TokenCount` names the native
 inline token-counter schema.
 `InitializeAsync` always sends `openengine.cluster/v1`, and a successful response
@@ -129,7 +130,7 @@ arrive. The result must identify the requested run and echo a supplied `FromCurs
 That cursor is an exclusive starting position, not a current-history watermark.
 Cursors remain opaque; the client never parses, orders or increments them.
 Watch source identity must match `expectedSource` when supplied, or remain equal
-to the first validated source. Active subscription records with malformed shapes
+to the first validated record's source, including its absence. Active subscription records with malformed shapes
 or foreign run/source/execution identities fail that subscription without delivery.
 Unknown subscription IDs are ignored, including legitimate frames still in flight
 after local detach. No retired-ID table is retained.
@@ -371,7 +372,8 @@ failure. Refusals throw `NativeOecpException` like other reads.
 proposed ID. An omitted selection and an explicit `RestartResumeFrom` both restart
 the graph on the latest retained workspace; they stay distinct on the wire.
 `CheckpointResumeFrom` restores an entry checkpoint. Fresh connection values, the
-resolver and the GitHub token are supplied as a separate `TargetRunCredentials`
+resolver, the GitHub token and any `GitTransportCredentials` for a generic Git source
+are supplied as a separate `TargetRunCredentials`
 argument, sent only with that attempt, and never appear in default formatting.
 An empty connection map is omitted, as native does. The acknowledgement must name
 the requested successor and source run. Native imports no provider session,
@@ -530,6 +532,6 @@ user. Other tests cover owned closure, borrowed-pipe reuse, remote and non-canon
 path refusal, and connect cancellation and deadline. These are simulated endpoints.
 Native conformance is recorded separately by
 `tools/native-witness/windows-controller.ps1` on Windows x64, the only Windows
-architecture native 10.10.0 ships. The packed `ControllerConsumer` runs against a stock
+architecture native 10.12.0 ships. The packed `ControllerConsumer` runs against a stock
 local-run controller's pipe and checks the same support and refusal matrix as the
 Unix witness.

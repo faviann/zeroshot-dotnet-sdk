@@ -20,7 +20,7 @@ async Task<T> Refused<T>(Func<Task> call) where T : Exception
     throw new InvalidOperationException($"Expected {typeof(T).Name}.");
 }
 
-const string Revision = "3ee1192cec359a0b997f464e703a936e8b67d63c";
+const string Revision = "928de8ff918488749ca9d23e0a7349873401b7f7";
 const string NullOutput = "0195af77-1000-7000-8000-000000000001";
 const string ObjectOutput = "0195af77-1000-7000-8000-000000000002";
 const string FailedRun = "0195af77-1000-7000-8000-000000000003";
@@ -37,7 +37,7 @@ var peer = new HttpPeer(fixtures, "{}");
 var http = new CountingHandler(peer);
 using var httpClient = new HttpClient(http) { Timeout = Timeout.InfiniteTimeSpan };
 await using var native = NativeClient.ForHttp(new NativeClientOptions { Origin = origin }, httpClient);
-var binding = NativeBinding.CallerSupplied("10.10.0", Revision);
+var binding = NativeBinding.CallerSupplied("10.12.0", Revision);
 Check(binding.Provenance == "caller-supplied" && binding.ToString().StartsWith("caller-supplied", StringComparison.Ordinal), "Binding is labelled caller-supplied.");
 
 // Construction, preparation and reopening perform no network I/O.
@@ -69,9 +69,9 @@ await using (var missing = new ZeroshotClient(new ZeroshotClientOptions { Target
 await using (var older = new ZeroshotClient(new ZeroshotClientOptions { Target = origin, NativeBinding = NativeBinding.CallerSupplied("10.9.0", Revision) }))
 {
     var error = await Refused<NativeBindingException>(() => older.GetRun(run.Id).StatusAsync(token));
-    Check(error is { Reason: NativeBindingProblem.Mismatched, Declared.Release: "10.9.0", Required.Release: "10.10.0" }, "Unsupported binding reason.");
+    Check(error is { Reason: NativeBindingProblem.Mismatched, Declared.Release: "10.9.0", Required.Release: "10.12.0" }, "Unsupported binding reason.");
 }
-var foreign = sdk.GetRun(new RunReference(origin, run.Id, NativeBinding.CallerSupplied("10.10.0", new string('b', 40))));
+var foreign = sdk.GetRun(new RunReference(origin, run.Id, NativeBinding.CallerSupplied("10.12.0", new string('b', 40))));
 var foreignError = await Refused<NativeBindingException>(() => foreign.StatusAsync(token));
 Check(foreignError.Reason == NativeBindingProblem.Mismatched && foreignError.Required == binding, "Reference binding mismatch reason.");
 Catch<NativeBindingException>(() => foreign.AttachAsync(new ExecutionRef("held"), token));

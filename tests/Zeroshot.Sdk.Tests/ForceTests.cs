@@ -185,4 +185,16 @@ public sealed class ForceTests
         Check((await admitted).Outcome == NativeAttemptOutcome.Acknowledged && (await pending).Runs.Length == 0);
         await peer.Finished;
     }
+
+    [Test]
+    public async Task AForceResultWithoutASourceDecodes()
+    {
+        var sourceless = Finished.Remove(Finished.IndexOf("\"source\"", StringComparison.Ordinal),
+            Finished.IndexOf("\"size\"", StringComparison.Ordinal) - Finished.IndexOf("\"source\"", StringComparison.Ordinal));
+        await using var peer = new Peer(async socket => await Reply(socket, await Read(socket), sourceless));
+        using var client = peer.Client(); await using var connection = await client.ConnectOecpAsync(peer.Session);
+        var finished = await connection.Runs.ForceAsync(Run);
+        Check(finished is { Outcome: NativeAttemptOutcome.Acknowledged, Response: { Source: null, Status: FinishedRunStatus } });
+        await peer.Finished;
+    }
 }

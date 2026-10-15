@@ -59,11 +59,4 @@ public sealed class NestedSchemaTests
         request["connections"] = new JsonObject();
         Refused<TargetRunRequest>(request, nameof(TargetRunRequest), n => n["submission"]!["environment"] = EmptyConnection.DeepClone());
     }
-
-    [Test]
-    public void DashboardTemplateRuntimeBinding()
-    {
-        Refused<DashboardBootstrap>(Fixture("dashboard-bootstrap.json"), nameof(DashboardTemplate),
-            n => n["templates"]![1]!["runtimeBindings"]!["deliver"]!["connections"]!["github"] = new JsonArray());
-    }
 }

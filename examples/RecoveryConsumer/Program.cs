@@ -8,7 +8,7 @@ TargetRunRequest Request(string name) => NativeJson.DeserializeUtf8<TargetRunReq
 var request = Request("recovery-request.json");
 var attached = Request("attachment-request.json");
 var forced = Request("force-request.json");
-var source = request.Submission.Source;
+var source = request.Submission.Source.Value!;
 // Fresh values for the successor's declared connection; the retained submission carries none.
 var credentials = new TargetRunCredentials { Connections = request.Connections };
 RunId first = new("0195af77-2200-7000-8000-000000000004"), second = new("0195af77-2200-7000-8000-000000000005"),

@@ -185,7 +185,7 @@ public sealed class SubmitTests
             Check(error.Attempt.Outcome == NativeAttemptOutcome.NotSent &&
                 error.InnerException is NativeBindingException { Reason: NativeBindingProblem.Missing }, "Ordinary binding refusal carries the attempt.");
         }
-        await using (var previous = Client(handler, NativeBinding.CallerSupplied("10.9.0", "75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa")))
+        await using (var previous = Client(handler, NativeBinding.CallerSupplied("10.10.0", "3ee1192cec359a0b997f464e703a936e8b67d63c")))
         {
             var attempt = await previous.SubmitAttemptAsync(Retained());
             Check(attempt is { Outcome: NativeAttemptOutcome.NotSent, Failure: NativeBindingException { Reason: NativeBindingProblem.Mismatched } },
@@ -206,5 +206,27 @@ public sealed class SubmitTests
             base.Dispose(disposing);
             if (disposing) cleanup();
         }
+    }
+
+    [Test]
+    public async Task ALocalFolderRequestIsSentWithoutASource()
+    {
+        var fields = JsonNode.Parse(File.ReadAllText(Path.Combine(Fixtures, "prepared.json")))!["submission"]!.AsObject();
+        fields.Remove("source");
+        var request = RunRequest.ParseUtf8(Encoding.UTF8.GetBytes(fields.ToJsonString()));
+        Check(!request.Source.HasValue, "An omitted source was invented.");
+        fields["source"] = null;
+        Check(RunRequest.ParseUtf8(Encoding.UTF8.GetBytes(fields.ToJsonString())).Source is { HasValue: true, Value: null }, "An explicit null source was lost.");
+        var bodies = new List<string>();
+        var handler = new Handler(async (message, token) =>
+        {
+            bodies.Add(await message.Content!.ReadAsStringAsync(token));
+            return Reply(message, Receipt(Acknowledged));
+        });
+        await using var sdk = Client(handler);
+        var run = await sdk.SubmitAsync(request);
+        Check(run.Id.Value == Acknowledged && !JsonNode.Parse(bodies.Single())!["submission"]!.AsObject().ContainsKey("source"),
+            "A run without a source is sent without one.");
+        Check(!run.Submission!.Prepared.Submission.Source.HasValue);
     }
 }

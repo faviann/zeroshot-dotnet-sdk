@@ -11,6 +11,31 @@ internal sealed record CapabilityRoute<TRoutes>(Func<TRoutes, string> Template, 
 
 internal static class HttpCapability
 {
+    internal const string NodeRuntimeLanesKind = "openengine.node-runtime-lanes/v1";
+    internal const string GitTransportKind = "openengine.git-transport/v1";
+
+    // Native refuses these before requesting access (controller_authority.rs). Another marker kind reads as unsupported.
+    internal static void RequireRuntimeLanes(TargetDiscoveryDocument discovery, RuntimePlan runtime)
+    {
+        var nodes = runtime switch
+        {
+            CopilotRuntime copilot => copilot.Nodes, CodexRuntime codex => codex.Nodes, ClaudeRuntime claude => claude.Nodes,
+            _ => throw new ArgumentException("Unknown runtime plan.", nameof(runtime))
+        };
+        if (nodes.Values.Any(node => node is AgentBinding { Lane: { HasValue: true, Value: not null } }) &&
+            discovery.Extensions.NodeRuntimeLanes?.Kind != NodeRuntimeLanesKind)
+            throw new ArgumentException($"The target does not support per-node runtime lanes ({NodeRuntimeLanesKind}).");
+    }
+
+    // A remote or a 64-hex revision is a generic Git source; legacy GitHub sources keep working on older targets.
+    internal static void RequireGitTransport(TargetDiscoveryDocument discovery, ResolvedSource? source, GitTransportCredentials? credentials)
+    {
+        var required = credentials is not null || source is not null &&
+            (source.Remote is { HasValue: true, Value: not null } || source.Revision.Value.Length == 64);
+        if (required && discovery.Extensions.GitTransport?.Kind != GitTransportKind)
+            throw new ArgumentException($"The target does not support generic Git transport ({GitTransportKind}).");
+    }
+
     // Native refuses direct targets; only hosted OAuth discovery can carry host-owned capabilities.
     internal static void Hosted(TargetDiscoveryDocument discovery, TargetControlCredentials? credentials)
     {

@@ -365,6 +365,9 @@ public sealed record LoopNode : GraphNode
     public required GraphNode Body { get; init; }
     [JsonPropertyName("maxIterations")]
     public required PositiveInteger MaxIterations { get; init; }
+    [JsonPropertyName("maxIterationsInput")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ImmutableArray<string>?> MaxIterationsInput { get; init; }
     [JsonPropertyName("name")]
     public required NodeName Name { get; init; }
     [JsonPropertyName("promotedStatePaths")]
@@ -584,6 +587,9 @@ public sealed record AgentBinding : NodeRuntimeBinding
     [JsonPropertyName("effort")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ReasoningEffort?> Effort { get; init; }
+    [JsonPropertyName("lane")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<RuntimeLane?> Lane { get; init; }
     [JsonPropertyName("model")]
     public required ModelId Model { get; init; }
     [JsonPropertyName("sessionScope")]
@@ -725,11 +731,27 @@ public enum RedactionClass
     Restricted,
 }
 
+[WireContract("ResolvedGitRemote")]
+public sealed record ResolvedGitRemote : NativeContract
+{
+    [JsonPropertyName("connection")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ConnectionKey?> Connection { get; init; }
+    [JsonPropertyName("forge")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<SourceForgeIdentity?> Forge { get; init; }
+    [JsonPropertyName("url")]
+    public required string Url { get; init; }
+}
+
 [WireContract("ResolvedSource")]
 public sealed record ResolvedSource : NativeContract
 {
     [JsonPropertyName("branch")]
     public required SourceBranchId Branch { get; init; }
+    [JsonPropertyName("remote")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ResolvedGitRemote?> Remote { get; init; }
     [JsonPropertyName("repository")]
     public required SourceRepositoryId Repository { get; init; }
     [JsonPropertyName("revision")]
@@ -760,7 +782,8 @@ public sealed record RunSubmission : NativeContract
     [JsonPropertyName("runtime")]
     public required RuntimePlan Runtime { get; init; }
     [JsonPropertyName("source")]
-    public required ResolvedSource Source { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ResolvedSource?> Source { get; init; }
     [JsonPropertyName("submissionKey")]
     public required IdempotencyKey SubmissionKey { get; init; }
     [JsonPropertyName("title")]
@@ -791,6 +814,37 @@ public sealed record RuntimeEnvironment : NativeContract
     [JsonPropertyName("variables")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ImmutableDictionary<string, string>> Variables { get; init; }
+}
+
+[WireContract("RuntimeLane")]
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "harness")]
+[JsonDerivedType(typeof(CopilotLane), "copilot")]
+[JsonDerivedType(typeof(CodexLane), "codex")]
+[JsonDerivedType(typeof(ClaudeLane), "claude")]
+public abstract record RuntimeLane : NativeContract
+{
+    private protected RuntimeLane() { }
+}
+
+[WireContract("RuntimeLane")]
+public sealed record CopilotLane : RuntimeLane
+{
+    [JsonPropertyName("provider")]
+    public required CopilotProvider Provider { get; init; }
+}
+
+[WireContract("RuntimeLane")]
+public sealed record CodexLane : RuntimeLane
+{
+    [JsonPropertyName("provider")]
+    public required CodexProvider Provider { get; init; }
+}
+
+[WireContract("RuntimeLane")]
+public sealed record ClaudeLane : RuntimeLane
+{
+    [JsonPropertyName("provider")]
+    public required ClaudeProvider Provider { get; init; }
 }
 
 [WireContract("RuntimePlan")]
@@ -843,6 +897,15 @@ public enum SessionScope
     Execution,
     [JsonStringEnumMemberName("node_instance")]
     NodeInstance,
+}
+
+[WireContract("SourceForgeIdentity")]
+public sealed record SourceForgeIdentity : NativeContract
+{
+    [JsonPropertyName("provider")]
+    public required string Provider { get; init; }
+    [JsonPropertyName("repository")]
+    public required SourceRepositoryId Repository { get; init; }
 }
 
 [WireContract("StructuralBounds")]

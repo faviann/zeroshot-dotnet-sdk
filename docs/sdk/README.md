@@ -8,7 +8,7 @@ needs none of the SDK's binding, waiting or recovery policy.
 await using var zeroshot = new ZeroshotClient(new ZeroshotClientOptions
 {
     Target = new Uri("https://target.example/"),
-    NativeBinding = NativeBinding.CallerSupplied("10.10.0", "3ee1192cec359a0b997f464e703a936e8b67d63c"),
+    NativeBinding = NativeBinding.CallerSupplied("10.12.0", "928de8ff918488749ca9d23e0a7349873401b7f7"),
 });
 
 RunResult done = await zeroshot.RunAsync(request, runCredentials, timeout: null, ct); // submit, then wait
@@ -50,8 +50,10 @@ disposes both clients. Disposal never stops a run.
 
 ## Requests and preparation
 
-`RunRequest` holds title, graph, runtime, initial input and exact source, plus optional
-environment, `RunId` and `SubmissionKey`. `ParseUtf8` reads the native submission fields
+`RunRequest` holds title, graph, runtime and initial input, plus optional source,
+environment, `RunId` and `SubmissionKey`. An omitted source is sent as omitted, for runs
+whose native host supplies the workspace, such as local-folder runs; contained targets
+refuse a run without one. `ParseUtf8` reads the native submission fields
 (with `submissionKey` optional) and an optional `runId`, and rejects unknown or duplicate
 fields and invalid native values. `Prepare()` generates an omitted run ID as a canonical
 UUIDv7 and an omitted key as `dotnet-` plus 32 lowercase hex digits, then fixes the
@@ -111,7 +113,7 @@ reported as remote attestation. Before each run operation, the SDK refuses with 
 `NativeBindingException` (inside a `NotSent` attempt for submission) with:
 
 - `Missing` when the client has no binding;
-- `Mismatched` when the binding is not native 10.10.0 at `3ee1192c…`, or when a reopened
+- `Mismatched` when the binding is not native 10.12.0 at `928de8ff…`, or when a reopened
   reference's binding differs from the client's.
 
 Neither case dispatches anything. Discovery and every other `NativeClient` call stay
@@ -120,7 +122,7 @@ available. `run.Reference` throws `Missing` when there is no binding to record.
 A `RunReference` is the exact target, run ID and binding, with no credentials or history:
 
 ```json
-{"schema":"zeroshot-dotnet/run-reference/v1","target":"https://target.example/","runId":"…","nativeBinding":{"provenance":"caller-supplied","release":"10.10.0","sourceRevision":"3ee1192cec359a0b997f464e703a936e8b67d63c"}}
+{"schema":"zeroshot-dotnet/run-reference/v1","target":"https://target.example/","runId":"…","nativeBinding":{"provenance":"caller-supplied","release":"10.12.0","sourceRevision":"928de8ff918488749ca9d23e0a7349873401b7f7"}}
 ```
 
 `Parse` accepts exactly these fields. `GetRun(reference)` rejects a different target; it

@@ -183,7 +183,8 @@ public sealed record RunStatusResult : NativeContract
     [JsonPropertyName("title")]
     public required RunTitle Title { get; init; }
     [JsonPropertyName("source")]
-    public required ResolvedSource Source { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ResolvedSource? Source { get; init; }
     [JsonPropertyName("size")]
     public required RunSize Size { get; init; }
     [JsonPropertyName("atCursor")]
@@ -194,6 +195,7 @@ public sealed record RunStatusResult : NativeContract
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<WorkspaceRecovery> WorkspaceRecovery { get; init; }
 
+    // A null expectation accepts any source, including none.
     internal void Require(RunId runId, ResolvedSource? expectedSource)
     {
         if (RunId != runId || (expectedSource is not null && Source != expectedSource)) throw new JsonException();
@@ -216,7 +218,8 @@ public sealed record RunForceResult : NativeContract
     [JsonPropertyName("title")]
     public required RunTitle Title { get; init; }
     [JsonPropertyName("source")]
-    public required ResolvedSource Source { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ResolvedSource? Source { get; init; }
     [JsonPropertyName("size")]
     public required RunSize Size { get; init; }
     [JsonPropertyName("atCursor")]

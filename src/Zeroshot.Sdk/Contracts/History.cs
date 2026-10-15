@@ -188,7 +188,8 @@ public sealed record RunDefinition : HistoryContract
     [JsonPropertyName("initialInput")]
     public required JsonElement InitialInput { get; init; }
     [JsonPropertyName("source")]
-    public required ResolvedSource Source { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ResolvedSource? Source { get; init; }
     [JsonPropertyName("history")]
     public required HistoryMetadata History { get; init; }
     [JsonPropertyName("observation")]

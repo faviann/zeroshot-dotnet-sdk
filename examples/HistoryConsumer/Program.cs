@@ -24,7 +24,7 @@ Check(after.Runs.Select(Json).SequenceEqual(list.Runs.Skip(1).Select(Json)), "li
 var runId = inspection.RunId;
 var definition = await native.History.DetailAsync(discovery, runId, cancellationToken: token);
 Check(Json(definition.Graph) == Json(inspection.Submission.Graph) && Json(definition.Runtime) == Json(inspection.Submission.Runtime) &&
-    definition.Source == inspection.Submission.Source && definition.Title == inspection.Submission.Title, "admitted definition");
+    definition.Source == inspection.Submission.Source.Value && definition.Title == inspection.Submission.Title, "admitted definition");
 Check(definition.Phase == RunPhase.Finished && definition.Terminal is FailedTerminalResult && definition.History.Complete, "retained terminal definition");
 var page = await native.History.PageAsync(discovery, runId, cancellationToken: token);
 Check(page.Complete && page.Finished && page.NextCursor == definition.Cursor && page.Events[^1].Event is TerminalHistoryEvent, "complete retained page");

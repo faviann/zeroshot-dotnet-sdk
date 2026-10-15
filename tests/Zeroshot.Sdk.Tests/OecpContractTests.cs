@@ -25,7 +25,7 @@ public sealed class OecpContractTests
     public void RunInspectionPreservesIdentityTerminalMetadataAndRecovery()
     {
         var status = Read<RunStatusResult>(Projection);
-        Check(status.RunId.Value == "run-1" && status.Source.Repository.Value == "owner/repo" && status.AtCursor.Value == "cursor-1", "Identity was lost.");
+        Check(status.RunId.Value == "run-1" && status.Source!.Repository.Value == "owner/repo" && status.AtCursor.Value == "cursor-1", "Identity was lost.");
         var terminal = (FinishedRunStatus)status.Status;
         Check(((SucceededTerminalResult)terminal.TerminalResult).Output.GetProperty("answer").GetInt32() == 42, "Terminal output was lost.");
         Check(terminal.Metadata.TokenUsage is { InputTokens.Value: 7, OutputTokens.Value: 3, CacheReadInputTokens.Value: 2, CacheCreationInputTokens.Value: 1, Complete: false }, "Terminal usage was lost.");
@@ -56,12 +56,16 @@ public sealed class OecpContractTests
     [Test]
     public void KnownRunAndSourceIdentityAndRecoveryAreRequiredAndStrict()
     {
-        foreach (var name in new[] { "runId", "title", "source", "size", "atCursor", "status" })
+        foreach (var name in new[] { "runId", "title", "size", "atCursor", "status" })
         {
             var document = JsonNode.Parse(Projection)!;
             document.AsObject().Remove(name);
             Reject<RunStatusResult>(document.ToJsonString());
         }
+        // A local-folder run has no source; native omits it.
+        var sourceless = JsonNode.Parse(Projection)!;
+        sourceless.AsObject().Remove("source");
+        Check(Read<RunStatusResult>(sourceless.ToJsonString()).Source is null, "A run without a source was refused.");
         foreach (var name in new[] { "repository", "branch", "revision" })
         {
             var document = JsonNode.Parse(Projection)!;

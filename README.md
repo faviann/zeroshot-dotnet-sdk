@@ -1,7 +1,7 @@
 # Zeroshot .NET SDK
 
-`Zeroshot.Client` is a preview .NET 10 library for native Zeroshot **10.10.0** at source
-`3ee1192cec359a0b997f464e703a936e8b67d63c`. It currently provides typed execution
+`Zeroshot.Client` is a preview .NET 10 library for native Zeroshot **10.12.0** at source
+`928de8ff918488749ca9d23e0a7349873401b7f7`. It currently provides typed execution
 definitions, local wire validation, immutable credential-free prepared submissions,
 [bounded HTTP discovery, session acquisition, direct submission attempts, private target bootstrap and private operator diagnostics/history exports](docs/http/README.md), and
 [WebSocket OECP inspection, bounded watch/log/attachment subscriptions, native force attempts, checkpoints and workspace recovery, shared cluster bindings and trusted run submit](docs/oecp/README.md) of existing targets,
@@ -174,8 +174,8 @@ re-runs the failed job. Nothing is pushed again.
 
 An SDK version mirrors the native Zeroshot release it binds, followed by an SDK revision:
 `<native major>.<native minor>.<native patch>.<revision>`. `10.10.0.1` is the first SDK
-release for native 10.10.0. Revisions start at 1, because NuGet shortens `10.10.0.0` to
-`10.10.0`. The only prerelease label is `-preview.<n>`, from 1: `10.10.0.1-preview.1` is a
+release for native 10.12.0. Revisions start at 1, because NuGet shortens `10.12.0.0` to
+`10.12.0`. The only prerelease label is `-preview.<n>`, from 1: `10.12.0.1-preview.1` is a
 preview of revision `10.10.0.1`. The SDK is still a preview: its API can change with any
 new native release.
 
@@ -188,8 +188,8 @@ your native release, use a wildcard on the fourth part. NuGet floating versions 
 prereleases, so it never selects a preview; pin a preview exactly:
 
 ```xml
-<PackageReference Include="Zeroshot.Client" Version="10.10.0.*" />
-<PackageReference Include="Zeroshot.Client" Version="[10.10.0.1-preview.1]" />
+<PackageReference Include="Zeroshot.Client" Version="10.12.0.*" />
+<PackageReference Include="Zeroshot.Client" Version="[10.12.0.1-preview.1]" />
 ```
 
 ## Native compatibility
@@ -203,10 +203,11 @@ per native release:
 | `0.1.0-preview.1` | 10.9.0 | `75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa` |
 | `0.2.0-preview.1` | 10.10.0 | `3ee1192cec359a0b997f464e703a936e8b67d63c` |
 | `10.10.0.*` | 10.10.0 | `3ee1192cec359a0b997f464e703a936e8b67d63c` |
+| `10.12.0.*` | 10.12.0 | `928de8ff918488749ca9d23e0a7349873401b7f7` |
 
 The first two releases predate mirrored versions. `10.10.0.1` and its previews bind the
-same native release as `0.2.0-preview.1`; [the 10.10.0 notes](docs/migration/10.10.0.md)
-list what they change.
+same native release as `0.2.0-preview.1`. The [migration notes](docs/migration) for each
+native release list what its first revision changes.
 
 The `zeroshot-native-<version>` package tag, the package description and
 `zeroshot-dotnet --version` name the same release. Move your native pin and target image
@@ -263,8 +264,8 @@ Reference the latest revision for your native release, or pin one exact version,
 preview needs:
 
 ```xml
-<PackageReference Include="Zeroshot.Client" Version="10.10.0.*" />
-<PackageReference Include="Zeroshot.Client" Version="[10.10.0.1-preview.1]" />
+<PackageReference Include="Zeroshot.Client" Version="10.12.0.*" />
+<PackageReference Include="Zeroshot.Client" Version="[10.12.0.1-preview.1]" />
 ```
 
 The CLI is not published. Build it from the tag that matches the SDK version, as the

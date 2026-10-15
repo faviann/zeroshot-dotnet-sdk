@@ -108,7 +108,7 @@ public sealed class HistoryObservationTests
         Check(failure is null, "Eligible interruptions recover.");
         Check(records.Select(r => r.Event.Cursor.Value).SequenceEqual(["c1", "c2", "c3", "c4"]), "Every record exactly once, in order.");
         Check(records.All(r => r.Checkpoint == target.Checkpoint(HistoryStream.Watch, r.Event.Cursor.Value)), "Each record carries its scoped checkpoint.");
-        Check(records[2].Event.SubscriptionId.Value == "w2" && records[0].Event.Source.Repository.Value == "acme/project", "Complete native identity and data.");
+        Check(records[2].Event.SubscriptionId.Value == "w2" && records[0].Event.Source!.Repository.Value == "acme/project", "Complete native identity and data.");
         var requests = target.Requests;
         Check(requests.Select(r => r.From).SequenceEqual(["c0", "c2", "c3"]), "Reopens resume after the last delivered cursor, never the server's.");
         Check(requests[1].Connection != requests[0].Connection,

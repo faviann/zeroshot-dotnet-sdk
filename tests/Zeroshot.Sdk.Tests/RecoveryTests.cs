@@ -207,4 +207,19 @@ public sealed class RecoveryTests
             await peer.Finished;
         }
     }
+
+    [Test]
+    public async Task ResumeCarriesFreshGitTransportCredentials()
+    {
+        await using var peer = new Peer(async socket => await Reply(socket, await Expect(socket, "run/resume",
+            """{"runId":"run-1","successorRunId":"run-2","gitCredentials":{"kind":"ssh","privateKey":"KEY-CANARY","knownHosts":"gitlab.example ssh-ed25519 AAAA"}}"""), Resumed));
+        using var client = peer.Client(); await using var connection = await client.ConnectOecpAsync(peer.Session);
+        var resumed = await connection.Runs.ResumeAsync(Run, Successor, credentials: new()
+        {
+            Connections = ImmutableDictionary<string, ImmutableDictionary<string, string>>.Empty,
+            GitCredentials = new SshGitTransportCredentials { PrivateKey = "KEY-CANARY", KnownHosts = "gitlab.example ssh-ed25519 AAAA" }
+        });
+        Check(resumed is { Outcome: NativeAttemptOutcome.Acknowledged, Response.RunId.Value: "run-2" });
+        await peer.Finished;
+    }
 }
