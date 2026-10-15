@@ -113,7 +113,7 @@ reported as remote attestation. Before each run operation, the SDK refuses with 
 `NativeBindingException` (inside a `NotSent` attempt for submission) with:
 
 - `Missing` when the client has no binding;
-- `Mismatched` when the binding is not native 10.12.0 at `3ee1192c…`, or when a reopened
+- `Mismatched` when the binding is not native 10.12.0 at `928de8ff…`, or when a reopened
   reference's binding differs from the client's.
 
 Neither case dispatches anything. Discovery and every other `NativeClient` call stay
