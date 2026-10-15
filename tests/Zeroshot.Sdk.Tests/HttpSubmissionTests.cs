@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using System.Collections.Immutable;
 using System.Net;
 using System.Net.Http.Headers;
@@ -274,5 +275,23 @@ public sealed class HttpSubmissionTests
             base.Dispose(disposing);
             if (disposing) cleanup();
         }
+    }
+
+    [Test]
+    public async Task GitCredentialsTravelOnlyInTheOuterEnvelope()
+    {
+        var git = new HttpsGitTransportCredentials { Username = "git", Password = "PASSWORD-CANARY" };
+        var bodies = new List<JsonNode>();
+        using var handler = new Handler(async (request, token) =>
+        {
+            bodies.Add(JsonNode.Parse(await request.Content!.ReadAsByteArrayAsync(token))!);
+            return Reply(request, Receipt());
+        });
+        using var client = ClientFor(handler);
+        await client.Target.SubmitAttemptAsync(Typed() with { GitCredentials = git });
+        await client.Target.SubmitAttemptAsync(Prepared(), Empty with { GitCredentials = git });
+        var expected = JsonNode.Parse("""{"kind":"https","username":"git","password":"PASSWORD-CANARY"}""");
+        Check(bodies.Count == 2 && bodies.All(body => JsonNode.DeepEquals(body["gitCredentials"], expected) && !body["submission"]!.ToJsonString().Contains("CANARY")));
+        Check(!(Empty with { GitCredentials = git }).ToString().Contains("CANARY"));
     }
 }

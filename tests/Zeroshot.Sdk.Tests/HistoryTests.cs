@@ -363,4 +363,14 @@ public sealed class HistoryTests
         reply.Content.Headers.ContentType = new("application/json");
         return reply;
     }
+
+    [Test]
+    public void ADefinitionWithoutASourceStaysWithoutOne()
+    {
+        var definition = Fixture("definition");
+        definition.AsObject().Remove("source");
+        definition.AsObject().Remove("snapshot");
+        var decoded = NativeJson.DeserializeUtf8<RunDefinition>(Bytes(definition));
+        Check(decoded.Source is null && JsonNode.DeepEquals(definition, JsonNode.Parse(NativeJson.SerializeUtf8(decoded))));
+    }
 }

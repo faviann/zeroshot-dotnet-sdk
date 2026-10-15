@@ -207,4 +207,26 @@ public sealed class SubmitTests
             if (disposing) cleanup();
         }
     }
+
+    [Test]
+    public async Task ALocalFolderRequestIsSentWithoutASource()
+    {
+        var fields = JsonNode.Parse(File.ReadAllText(Path.Combine(Fixtures, "prepared.json")))!["submission"]!.AsObject();
+        fields.Remove("source");
+        var request = RunRequest.ParseUtf8(Encoding.UTF8.GetBytes(fields.ToJsonString()));
+        Check(!request.Source.HasValue, "An omitted source was invented.");
+        fields["source"] = null;
+        Check(RunRequest.ParseUtf8(Encoding.UTF8.GetBytes(fields.ToJsonString())).Source is { HasValue: true, Value: null }, "An explicit null source was lost.");
+        var bodies = new List<string>();
+        var handler = new Handler(async (message, token) =>
+        {
+            bodies.Add(await message.Content!.ReadAsStringAsync(token));
+            return Reply(message, Receipt(Acknowledged));
+        });
+        await using var sdk = Client(handler);
+        var run = await sdk.SubmitAsync(request);
+        Check(run.Id.Value == Acknowledged && !JsonNode.Parse(bodies.Single())!["submission"]!.AsObject().ContainsKey("source"),
+            "A run without a source is sent without one.");
+        Check(!run.Submission!.Prepared.Submission.Source.HasValue);
+    }
 }

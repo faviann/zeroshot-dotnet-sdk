@@ -102,4 +102,45 @@ public sealed class ContractRuleTests
                     && !constructor.GetParameters().Select(p => p.ParameterType).SequenceEqual([type]))
                     throw new InvalidOperationException($"{type.Name} can be derived outside the SDK.");
     }
+
+    [Test]
+    public void ARemoteFreesTheRepositoryIdWhileALegacySourceKeepsOwnerAndName()
+    {
+        var revision = string.Concat(Enumerable.Repeat("ab", 32));
+        var generic = $$"""{"branch":"main","remote":{"connection":"source","forge":{"provider":"gitlab","repository":"group/sub/project"},"url":"https://gitlab.example/group/sub/project.git"},"repository":"gitlab.example/group/sub/project","revision":"{{revision}}"}""";
+        var source = NativeJson.DeserializeUtf8<ResolvedSource>(Encoding.UTF8.GetBytes(generic));
+        Check(source.Remote.Value is { Url: "https://gitlab.example/group/sub/project.git", Connection.Value.Value: "source", Forge.Value.Provider: "gitlab" });
+        Check(source.Revision.Value == revision && Encoding.UTF8.GetString(NativeJson.SerializeUtf8(source)) == generic);
+
+        var legacy = JsonNode.Parse(generic)!.AsObject();
+        legacy.Remove("remote");
+        Rejects<ResolvedSource>(legacy.ToJsonString());
+        legacy["repository"] = "acme/project";
+        Check(NativeJson.DeserializeUtf8<ResolvedSource>(Encoding.UTF8.GetBytes(legacy.ToJsonString())).Remote is { HasValue: false });
+        Rejects(() => NativeJson.SerializeUtf8(source with { Remote = Optional<ResolvedGitRemote?>.Omitted }));
+        Rejects(() => NativeJson.SerializeUtf8(source with { Remote = null }));
+        Check(new SourceRepositoryId("gitlab.example/group/sub/project").Value.Length > 0);
+        foreach (var invalid in new[] { "", "bad\u0001id", new string('é', 128) })
+            Rejects(() => _ = new SourceRepositoryId(invalid));
+        foreach (var invalid in new[] { new string('a', 41), new string('A', 40), new string('a', 63) })
+            Rejects(() => _ = new SourceRevisionId(invalid));
+
+        foreach (var url in new[] { "ssh://git@gitlab.example:2222/group/project.git", "git@github.com:acme/project.git", "https://[::1]:8443/repo.git" })
+            Check(NativeJson.DeserializeUtf8<ResolvedGitRemote>(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { url }))).Url == url, url);
+        foreach (var url in new[]
+        {
+            "http://gitlab.example/repo.git", "file:///srv/repo.git", "C:/repos/project", "https://user@gitlab.example/repo.git",
+            "https://gitlab.example/repo.git?ref=main", "-oProxyCommand=x:repo", "https://gitlab.example/repo with space",
+            "https://gitlab.example/" + new string('é', 2000)
+        })
+            Rejects<ResolvedGitRemote>(JsonSerializer.Serialize(new { url }));
+    }
+
+    private static void Rejects<T>(string json) => Rejects(() => NativeJson.DeserializeUtf8<T>(Encoding.UTF8.GetBytes(json)));
+    private static void Rejects(Action action)
+    {
+        try { action(); }
+        catch (Exception error) when (error is JsonException or ArgumentException) { return; }
+        throw new InvalidOperationException("An invalid native source value was accepted.");
+    }
 }

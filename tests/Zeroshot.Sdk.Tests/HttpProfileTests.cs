@@ -213,4 +213,50 @@ public sealed class HttpProfileTests
         Check(set.Outcome == NativeAttemptOutcome.Unknown && set.Response is null &&
             set.Failure is NativeHttpException { Kind: NativeHttpFailureKind.SizeLimit });
     }
+
+    [Test]
+    public async Task LaneOverridesAndGenericGitNeedTheirExactMarkers()
+    {
+        var bodies = new List<JsonNode>();
+        using var handler = new Handler(async (request, token) =>
+        {
+            bodies.Add(JsonNode.Parse(await request.Content!.ReadAsByteArrayAsync(token))!);
+            return request.RequestUri!.AbsolutePath == "/api/profiles/set"
+                ? Reply(request, $$"""{"profile":{{Profile()}}}""")
+                : Reply(request, $$"""{"runId":"{{RunId}}"}""", HttpStatusCode.Accepted);
+        });
+        using var client = ClientFor(handler);
+        TargetDiscoveryDocument With(TargetNodeRuntimeLanesDiscovery? lanes = null, TargetGitTransportDiscovery? git = null)
+            => Discovery(Capability) with { Extensions = Discovery(Capability).Extensions with { NodeRuntimeLanes = lanes, GitTransport = git } };
+
+        var runtime = Canonical(Runtime);
+        runtime["nodes"]!["work"]!["lane"] = JsonNode.Parse("""{"harness":"claude","provider":"anthropic"}""");
+        var laned = SetRequest() with { Runtime = Parse<RuntimePlan>(runtime) };
+        foreach (var marker in new TargetNodeRuntimeLanesDiscovery?[] { null, new() { Kind = "openengine.node-runtime-lanes/v2" } })
+            await Invalid(() => client.Profiles.SetAsync(With(lanes: marker), laned, Hosted));
+        Check(handler.Calls == 0, "A plan with lane overrides was sent to a target without the marker.");
+        Check((await client.Profiles.SetAsync(With(lanes: new() { Kind = "openengine.node-runtime-lanes/v1" }), laned, Hosted)).Outcome == NativeAttemptOutcome.Acknowledged);
+        Check((await client.Profiles.SetAsync(Discovery(Capability), SetRequest(), Hosted)).Outcome == NativeAttemptOutcome.Acknowledged);
+
+        var git = new SshGitTransportCredentials { PrivateKey = "KEY-CANARY", KnownHosts = "gitlab.example ssh-ed25519 AAAA" };
+        var legacy = RunRequest().Source;
+        RunProfileRunRequest[] generic =
+        [
+            RunRequest() with { Source = legacy with { Repository = new("gitlab.example/group/project"), Remote = new ResolvedGitRemote { Url = "git@gitlab.example:group/project.git" } } },
+            RunRequest() with { Source = legacy with { Revision = new(new string('b', 64)) } },
+            RunRequest() with { GitCredentials = git }
+        ];
+        foreach (var request in generic)
+        {
+            foreach (var marker in new TargetGitTransportDiscovery?[] { null, new() { Kind = "openengine.git-transport/v2" } })
+                await Invalid(() => client.Profiles.RunAsync(With(git: marker), request, Hosted), "KEY-CANARY");
+            Check((await client.Profiles.RunAsync(With(git: new() { Kind = "openengine.git-transport/v1" }), request, Hosted)).Outcome == NativeAttemptOutcome.Acknowledged);
+        }
+        Check(JsonNode.DeepEquals(bodies[^1]["gitCredentials"],
+            JsonNode.Parse("""{"kind":"ssh","privateKey":"KEY-CANARY","knownHosts":"gitlab.example ssh-ed25519 AAAA"}""")));
+        Check(!(RunRequest() with { GitCredentials = git }).ToString().Contains("CANARY"));
+        Check((await client.Profiles.RunAsync(Discovery(Capability), RunRequest(), Hosted)).Outcome == NativeAttemptOutcome.Acknowledged,
+            "A legacy GitHub source needs no marker.");
+        Check(handler.Calls == 6);
+    }
 }

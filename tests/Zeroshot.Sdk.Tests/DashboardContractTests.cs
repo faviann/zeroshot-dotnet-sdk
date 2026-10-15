@@ -134,4 +134,23 @@ public sealed class DashboardContractTests
         Rejected<DashboardValidation>(JsonNode.Parse("""{"valid":false}""")!);
         Rejected<DashboardProfileDocument>(new JsonObject { ["graph"] = graph.DeepClone(), ["runtime"] = JsonNode.Parse(draftRuntime.GetRawText()) });
     }
+
+    [Test]
+    public async Task BootstrapKeepsBlankWorkerDraftsAndLoopIterationInputs()
+    {
+        var original = JsonNode.Parse(await File.ReadAllBytesAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures/dashboard-bootstrap.json")))!;
+        // Native 10.12.0 software-change templates retain one worker session through a blank-model draft.
+        var draft = JsonNode.Parse("""{"kind":"agent","model":"","sessionScope":"node_instance"}""")!;
+        original["templates"]![1]!["runtimeBindings"]!["worker"] = draft.DeepClone();
+        // Auto-research templates read their loop limit from the run input.
+        var graph = JsonNode.Parse(await File.ReadAllBytesAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures/graphs.json")))![8]!.DeepClone();
+        graph["root"]!["maxIterationsInput"] = new JsonArray("max_rounds");
+        original["templates"]![0]!["graph"] = graph;
+        var bootstrap = NativeJson.DeserializeUtf8<DashboardBootstrap>(Encoding.UTF8.GetBytes(original.ToJsonString()));
+        var worker = bootstrap.Templates[1].RuntimeBindings["worker"];
+        Check(worker.GetProperty("model").GetString() == "" && worker.GetProperty("sessionScope").GetString() == "node_instance");
+        Check(((LoopNode)bootstrap.Templates[0].Graph.Root).MaxIterationsInput.Value!.Value.Single() == "max_rounds");
+        var written = JsonNode.Parse(NativeJson.SerializeUtf8(bootstrap))!;
+        Check(JsonNode.DeepEquals(written["templates"]![1]!["runtimeBindings"]!["worker"], draft), "The draft binding changed.");
+    }
 }

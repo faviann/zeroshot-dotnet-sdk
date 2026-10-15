@@ -274,4 +274,16 @@ public sealed class HttpHostedRunTests
         catch (NativeHttpException error) { return error; }
         throw new InvalidOperationException("Expected HTTP failure.");
     }
+
+    [Test]
+    public async Task HostedRunsWithoutASourceKeepThatAbsence()
+    {
+        var omitted = "\"source\":" + Source + ",";
+        using var native = ClientFor(new Handler((request, _) => Task.FromResult(Reply(request, Status(Queued).Replace(omitted, "")))));
+        Check((await native.HostedRuns.StatusAsync(Discovery(Capability), new(Run), Hosted)).Source is null);
+        var sourceless = Watch(1).Replace(omitted, "");
+        var (events, completion, delivered) = await ObserveWatch(sourceless + "\n" + sourceless.Replace("cloud:1", "cloud:2") + "\n" + Watch(3) + "\n");
+        Check(events.Count == 2 && events.All(record => record.Source is null) && delivered == "cloud:2" &&
+            completion.Failure?.Kind == NativeSubscriptionFailureKind.Protocol, "A record that gains a source was delivered.");
+    }
 }
