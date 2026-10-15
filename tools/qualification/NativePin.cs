@@ -18,7 +18,7 @@ internal static class NativePin
         ("tools/qualification/Candidate.cs", null, "Maps the releases before mirrored versions to the native releases they bind."),
         ("tests/Qualification.Tests/", null, "Compatibility fixtures model earlier bindings and baselines."),
         ("docs/contracts/native-inventory.md", "0.1.0-preview.1", "The interface inventory cites the native sources it was read from."),
-        ("tests/Zeroshot.Sdk.Tests/SubmitTests.cs", "0.1.0-preview.1", "Proves a client configured with the previous binding is refused."),
+        ("tests/Zeroshot.Sdk.Tests/SubmitTests.cs", "0.2.0-preview.1", "Proves a client configured with the previous binding is refused."),
         ("tests/Zeroshot.Sdk.Tests/DashboardContractTests.cs", "0.1.0-preview.1", "Names the stock release a fixture was trimmed from."),
         ("examples/RunHandleConsumer/Program.cs", "0.1.0-preview.1", "Demonstrates that a run declared with the previous binding is refused."),
     ];

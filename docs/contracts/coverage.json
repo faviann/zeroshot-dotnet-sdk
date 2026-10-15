@@ -1,6 +1,6 @@
 {
-  "nativeVersion": "10.10.0",
-  "sourceRevision": "3ee1192cec359a0b997f464e703a936e8b67d63c",
+  "nativeVersion": "10.12.0",
+  "sourceRevision": "928de8ff918488749ca9d23e0a7349873401b7f7",
   "inventoryRevision": "3c64d3ba39ddd8599b748e5938cba35bc1026e11",
   "scope": "Named complete native HTTP/OECP bindings; endpoint applicability is not a claim of support on every target.",
   "commonContracts": {

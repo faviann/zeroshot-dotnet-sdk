@@ -185,7 +185,7 @@ public sealed class SubmitTests
             Check(error.Attempt.Outcome == NativeAttemptOutcome.NotSent &&
                 error.InnerException is NativeBindingException { Reason: NativeBindingProblem.Missing }, "Ordinary binding refusal carries the attempt.");
         }
-        await using (var previous = Client(handler, NativeBinding.CallerSupplied("10.9.0", "75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa")))
+        await using (var previous = Client(handler, NativeBinding.CallerSupplied("10.10.0", "3ee1192cec359a0b997f464e703a936e8b67d63c")))
         {
             var attempt = await previous.SubmitAttemptAsync(Retained());
             Check(attempt is { Outcome: NativeAttemptOutcome.NotSent, Failure: NativeBindingException { Reason: NativeBindingProblem.Mismatched } },

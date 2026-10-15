@@ -3,13 +3,13 @@
        package tags and descriptions, the qualification tool and the native witness scripts all read these values, and
        release qualification refuses a tracked file that mentions any other native version or source revision. -->
   <PropertyGroup>
-    <ZeroshotNativeVersion>10.10.0</ZeroshotNativeVersion>
-    <ZeroshotNativeSourceRevision>3ee1192cec359a0b997f464e703a936e8b67d63c</ZeroshotNativeSourceRevision>
+    <ZeroshotNativeVersion>10.12.0</ZeroshotNativeVersion>
+    <ZeroshotNativeSourceRevision>928de8ff918488749ca9d23e0a7349873401b7f7</ZeroshotNativeSourceRevision>
     <!-- The stock release archives the witnesses download, and the executables they extract. -->
-    <ZeroshotNativeLinuxX64ArchiveSha256>fbc13b2385a088ff0f8fa03fdf72d4aa7ae6202d4289204e57ba1617628d6f16</ZeroshotNativeLinuxX64ArchiveSha256>
-    <ZeroshotNativeLinuxX64ExecutableSha256>d0c84ffbafa731ef7fa6b61f87af9c000cc4e5b4d2e0d3b7df461fd239bb923e</ZeroshotNativeLinuxX64ExecutableSha256>
-    <ZeroshotNativeWindowsX64ArchiveSha256>74a857efde74a678e2dd3c956f672a13f671bafe0992f42b891a3ab904a65f9c</ZeroshotNativeWindowsX64ArchiveSha256>
-    <ZeroshotNativeWindowsX64ExecutableSha256>d8f4d6bb61aaab2083486e5048e70720048042ffe264a459eed0879c2aaa5eb7</ZeroshotNativeWindowsX64ExecutableSha256>
+    <ZeroshotNativeLinuxX64ArchiveSha256>d8e9ace6f82c3fc9acbc00ac47cae5111e5157fbf7b72f350a20e0e0383dce3e</ZeroshotNativeLinuxX64ArchiveSha256>
+    <ZeroshotNativeLinuxX64ExecutableSha256>d11059a3c08eb460815dd3e450b4bf096cfd7ade31386383c470e5f888f6cf6e</ZeroshotNativeLinuxX64ExecutableSha256>
+    <ZeroshotNativeWindowsX64ArchiveSha256>b4138afd2ef7b5f453fa237b86b3f49aa5cd478f6512efd6599c6fa69d528441</ZeroshotNativeWindowsX64ArchiveSha256>
+    <ZeroshotNativeWindowsX64ExecutableSha256>9a07112dfca2ece3babcb8f06df3c02695208acfd35de2c78d3677a1d85ae9d6</ZeroshotNativeWindowsX64ExecutableSha256>
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="ZeroshotNativeVersion" Value="$(ZeroshotNativeVersion)" />

@@ -203,6 +203,7 @@ per native release:
 | `0.1.0-preview.1` | 10.9.0 | `75ae54b6693b6ae4cedeedd37a79ce3919d9a8fa` |
 | `0.2.0-preview.1` | 10.10.0 | `3ee1192cec359a0b997f464e703a936e8b67d63c` |
 | `10.10.0.*` | 10.10.0 | `3ee1192cec359a0b997f464e703a936e8b67d63c` |
+| `10.12.0.*` | 10.12.0 | `928de8ff918488749ca9d23e0a7349873401b7f7` |
 
 The first two releases predate mirrored versions. `10.10.0.1` and its previews bind the
 same native release as `0.2.0-preview.1`; [the 10.10.0 notes](docs/migration/10.10.0.md)
