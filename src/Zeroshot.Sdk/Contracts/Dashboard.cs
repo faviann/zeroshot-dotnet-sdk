@@ -47,12 +47,21 @@ public sealed record DashboardTemplate : DashboardContract
     public required string Label { get; init; }
     [JsonPropertyName("graph")]
     public required GraphSpec Graph { get; init; }
+    /// <summary>
+    /// Native's editor bindings by node name. An agent draft can carry a blank model
+    /// (<c>{"kind":"agent","model":"","sessionScope":"node_instance"}</c>), so a value is not necessarily an admissible
+    /// <see cref="NodeRuntimeBinding"/>; decode a complete one with <see cref="NativeJson"/>.
+    /// </summary>
     [JsonPropertyName("runtimeBindings")]
-    public required ImmutableDictionary<string, NodeRuntimeBinding> RuntimeBindings { get; init; }
+    public required ImmutableDictionary<string, JsonElement> RuntimeBindings { get; init; }
 
     internal override void Validate()
     {
-        foreach (var name in RuntimeBindings.Keys) _ = new NodeName(name);
+        foreach (var (name, binding) in RuntimeBindings)
+        {
+            _ = new NodeName(name);
+            if (binding.ValueKind != JsonValueKind.Object) throw new JsonException();
+        }
     }
 }
 

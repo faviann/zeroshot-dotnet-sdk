@@ -24,7 +24,7 @@ public sealed class SubscriptionContractTests
     public void FullDistinctNativeEventsRetainMetadataAndOpaqueValues()
     {
         var watch = Read<RunWatchEventNotification>(RunWatchRecord);
-        Check(watch.Source.Repository.Value == "owner/repo" && watch.Size == RunSize.Small);
+        Check(watch.Source!.Repository.Value == "owner/repo" && watch.Size == RunSize.Small);
         var status = (FinishedRunStatus)watch.Status;
         Check(((SucceededTerminalResult)status.TerminalResult).Output.GetProperty("answer").GetInt32() == 42);
         Check(status.Metadata.TokenUsage is { InputTokens.Value: 7, OutputTokens.Value: 3, Complete: true });

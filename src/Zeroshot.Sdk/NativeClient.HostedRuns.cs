@@ -61,13 +61,13 @@ public sealed class NativeHostedRunsClient
         RunWatchParams parameters, TargetControlCredentials credentials, CancellationToken cancellationToken = default)
     {
         SubscriptionId? subscription = null;
-        ResolvedSource? source = null;
+        Optional<ResolvedSource?> source = default;
         return OpenAsync<HostedRunWatchEventNotification>(Watch, () => Route(discovery, credentials, Routes.Watch,
             Valid(parameters).RunId, ("from_cursor", parameters.FromCursor?.Value)), credentials, record =>
         {
             subscription ??= record.SubscriptionId;
-            source ??= record.Source;
-            parameters.Require(record, subscription, source);
+            if (!source.HasValue) source = record.Source;
+            parameters.Require(record, subscription, source.Value);
             return record.Cursor;
         }, cancellationToken);
     }

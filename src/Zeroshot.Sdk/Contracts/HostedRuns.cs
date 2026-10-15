@@ -33,7 +33,8 @@ public sealed record HostedRunStatusResult : TargetHttpContract
     [JsonPropertyName("title")]
     public required RunTitle Title { get; init; }
     [JsonPropertyName("source")]
-    public required ResolvedSource Source { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ResolvedSource? Source { get; init; }
     [JsonPropertyName("size")]
     public required RunSize Size { get; init; }
     [JsonPropertyName("atCursor")]
@@ -61,7 +62,8 @@ public sealed record HostedRunWatchEventNotification : TargetHttpContract
     [JsonPropertyName("title")]
     public required RunTitle Title { get; init; }
     [JsonPropertyName("source")]
-    public required ResolvedSource Source { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ResolvedSource? Source { get; init; }
     [JsonPropertyName("size")]
     public required RunSize Size { get; init; }
     [JsonPropertyName("cursor")]

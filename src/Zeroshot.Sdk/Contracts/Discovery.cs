@@ -233,6 +233,20 @@ public sealed record TargetWorkspaceCheckpointsDiscovery : DiscoveryContract
     public required string Kind { get; init; }
 }
 
+/// <summary>Per-node runtime lanes. Only the exact <c>openengine.node-runtime-lanes/v1</c> kind supports them.</summary>
+public sealed record TargetNodeRuntimeLanesDiscovery : DiscoveryContract
+{
+    [JsonPropertyName("kind")]
+    public required string Kind { get; init; }
+}
+
+/// <summary>Generic Git sources and credentials. Only the exact <c>openengine.git-transport/v1</c> kind supports them.</summary>
+public sealed record TargetGitTransportDiscovery : DiscoveryContract
+{
+    [JsonPropertyName("kind")]
+    public required string Kind { get; init; }
+}
+
 // Native ignores unknown extension names; each known descriptor remains strict.
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Skip)]
 public sealed record TargetDiscoveryExtensions : DiscoveryContract
@@ -261,5 +275,11 @@ public sealed record TargetDiscoveryExtensions : DiscoveryContract
     [JsonPropertyName("hosted_workspace_recovery")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public TargetHostedWorkspaceRecoveryDiscovery? HostedWorkspaceRecovery { get; init; }
+    [JsonPropertyName("node_runtime_lanes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TargetNodeRuntimeLanesDiscovery? NodeRuntimeLanes { get; init; }
+    [JsonPropertyName("git_transport")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TargetGitTransportDiscovery? GitTransport { get; init; }
 }
 

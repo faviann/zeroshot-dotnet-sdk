@@ -120,15 +120,15 @@ public sealed partial class OecpRunsClient
     {
         ArgumentNullException.ThrowIfNull(parameters);
         if (expectedSource is not null) _ = NativeJson.SerializeUtf8(expectedSource);
-        var source = expectedSource;
+        var source = expectedSource is null ? Optional<ResolvedSource?>.Omitted : expectedSource;
         return connection.SubscribeAsync<RunWatchResult, RunWatchEventNotification>("run/watch", NativeJson.SerializeUtf8(parameters), result =>
         {
             parameters.Require(result);
             return result.SubscriptionId;
         }, (id, record) =>
         {
-            source ??= record.Source;
-            parameters.Require(record, id, source);
+            if (!source.HasValue) source = record.Source;
+            parameters.Require(record, id, source.Value);
             return record.Cursor;
         }, cancellationToken);
     }

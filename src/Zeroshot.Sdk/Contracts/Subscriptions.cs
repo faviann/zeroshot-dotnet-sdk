@@ -17,13 +17,14 @@ public sealed record RunWatchParams : NativeContract
         if (result.RunId != RunId || (FromCursor is not null && result.AtCursor != FromCursor)) throw new JsonException();
     }
 
-    // Shared by the OECP and hosted HTTP watches: every record keeps the subscription, this run and the first source.
-    internal void Require(RunWatchEventNotification record, SubscriptionId subscription, ResolvedSource source)
+    // Shared by the OECP and hosted HTTP watches: every record keeps the subscription, this run and the first record's
+    // source, which a run without one omits on every record.
+    internal void Require(RunWatchEventNotification record, SubscriptionId subscription, ResolvedSource? source)
     {
         if (record.SubscriptionId != subscription || record.RunId != RunId || record.Source != source) throw new JsonException();
     }
 
-    internal void Require(HostedRunWatchEventNotification record, SubscriptionId subscription, ResolvedSource source)
+    internal void Require(HostedRunWatchEventNotification record, SubscriptionId subscription, ResolvedSource? source)
     {
         if (record.SubscriptionId != subscription || record.RunId != RunId || record.Source != source) throw new JsonException();
     }
@@ -85,7 +86,8 @@ public sealed record RunWatchEventNotification : NativeContract
     [JsonPropertyName("title")]
     public required RunTitle Title { get; init; }
     [JsonPropertyName("source")]
-    public required ResolvedSource Source { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ResolvedSource? Source { get; init; }
     [JsonPropertyName("size")]
     public required RunSize Size { get; init; }
     [JsonPropertyName("cursor")]

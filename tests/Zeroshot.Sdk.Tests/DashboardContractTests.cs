@@ -38,7 +38,7 @@ public sealed class DashboardContractTests
         var bootstrap = NativeJson.DeserializeUtf8<DashboardBootstrap>(bytes);
         Check(bootstrap.Workspace.Kind == DashboardWorkspaceKind.Target && bootstrap.Workspace.Id == "01a0e31e-4f6e-7f51-b114-59a1df1c2c17");
         Check(bootstrap.Templates.Select(t => t.Id).SequenceEqual(["single-worker:none", "software-change:push"]));
-        Check(bootstrap.Templates[1].RuntimeBindings["deliver"] is GitDeliveryBinding);
+        Check(NativeJson.DeserializeUtf8<NodeRuntimeBinding>(JsonSerializer.SerializeToUtf8Bytes(bootstrap.Templates[1].RuntimeBindings["deliver"])) is GitDeliveryBinding);
         var agent = (DashboardAgentWorker)bootstrap.Workers[0];
         Check(agent.WorkerRefs.IsEmpty && agent.RuntimeBinding.GetProperty("model").GetString() == "");
         var push = (DashboardGitDeliveryWorker)bootstrap.Workers[1];
@@ -55,7 +55,7 @@ public sealed class DashboardContractTests
             x => x["workspace"]!["id"] = "01A0E31E-4F6E-7F51-B114-59A1DF1C2C17",
             x => x["templates"]![0]!.AsObject().Remove("runtimeBindings"),
             x => x["templates"]![0]!["graph"]!["profile"] = "unknown",
-            x => x["templates"]![1]!["runtimeBindings"]!["deliver"]!["kind"] = "other",
+            x => x["templates"]![1]!["runtimeBindings"]!["deliver"] = "draft",
             x => x["templates"]![1]!["runtimeBindings"]!["not a node"] = x["templates"]![1]!["runtimeBindings"]!["deliver"]!.DeepClone(),
             x => x["workers"]![0]!["runtimeKind"] = "shell",
             x => x["workers"]![0]!["node"] = x["workers"]![1]!["node"]!.DeepClone(),

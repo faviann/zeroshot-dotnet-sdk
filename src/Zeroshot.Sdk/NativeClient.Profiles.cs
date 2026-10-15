@@ -40,7 +40,8 @@ public sealed class NativeProfilesClient
     /// <summary>Stores a profile once. Operational failures and cancellation return evidence.</summary>
     public Task<NativeAttempt<RunProfileMutationResult>> SetAsync(TargetDiscoveryDocument discovery, RunProfileSetRequest request,
         TargetControlCredentials credentials, CancellationToken cancellationToken = default)
-        => client.MutateAsync(Set, () => Route(discovery, request, credentials, Routes.Set), credentials, cancellationToken);
+        => client.MutateAsync(Set, () => Route(discovery, request, credentials, Routes.Set,
+            () => HttpCapability.RequireRuntimeLanes(discovery, request.Runtime)), credentials, cancellationToken);
 
     /// <summary>Deletes one profile once. Operational failures and cancellation return evidence.</summary>
     public Task<NativeAttempt<RunProfileDeleteResult>> DeleteAsync(TargetDiscoveryDocument discovery, RunProfileSelector selector,
@@ -55,13 +56,16 @@ public sealed class NativeProfilesClient
     /// <summary>Submits one run from a stored profile once. The acknowledged run ID can differ from the proposed one.</summary>
     public Task<NativeAttempt<TargetRunReceipt>> RunAsync(TargetDiscoveryDocument discovery, RunProfileRunRequest request,
         TargetControlCredentials credentials, CancellationToken cancellationToken = default)
-        => client.MutateAsync(Run, () => Route(discovery, request, credentials, Routes.Run), credentials, cancellationToken);
+        => client.MutateAsync(Run, () => Route(discovery, request, credentials, Routes.Run,
+            () => HttpCapability.RequireGitTransport(discovery, request.Source, request.GitCredentials)), credentials, cancellationToken);
 
     private HttpCall Route(TargetDiscoveryDocument discovery, TargetHttpContract request, TargetControlCredentials credentials,
-        CapabilityRoute<TargetRunProfileRoutes> route)
+        CapabilityRoute<TargetRunProfileRoutes> route, Action? supports = null)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return new(Capability.Compile(client.Origin, discovery, credentials).Url(route), NativeJson.SerializeUtf8(request));
+        var url = Capability.Compile(client.Origin, discovery, credentials).Url(route);
+        supports?.Invoke();
+        return new(url, NativeJson.SerializeUtf8(request));
     }
 
     private static class Routes
