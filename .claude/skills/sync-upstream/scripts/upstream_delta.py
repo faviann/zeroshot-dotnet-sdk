@@ -134,12 +134,12 @@ def rows(up, old, new):
     out = []
     changed_files = set(git(up, 'diff', '--name-only', old, new).split())
 
-    log = git(up, 'log', '--reverse', '--format=%x00%h%x09%s', '--name-only', f'{old}..{new}')
+    log = git(up, 'log', '--reverse', '--format=%x00%H%x09%s', '--name-only', f'{old}..{new}')
     for entry in filter(None, log.split('\x00')):
         head, *files = [line for line in entry.splitlines() if line]
         sha, subject = head.split('\t', 1)
         touched = [label for label, prefix in BUCKETS if any(f.startswith(prefix) for f in files)]
-        out.append(('commits', f'C:{sha}', f'{subject} [{", ".join(touched) or "other"}]'))
+        out.append(('commits', f'C:{sha[:7]}',f'{subject} [{", ".join(touched) or "other"}]'))
 
     before, after = upstream_defs(up, old), upstream_defs(up, new)
     closure = {}
@@ -204,7 +204,10 @@ def rows(up, old, new):
 
 @functools.cache
 def base():
-    return git(ROOT, 'merge-base', 'HEAD', 'origin/main').strip()
+    found = subprocess.run(['git', '-C', str(ROOT), 'merge-base', 'HEAD', 'origin/main'], capture_output=True, text=True)
+    if found.returncode:
+        sys.exit('No merge-base with origin/main. Run `git fetch origin main` first.')
+    return found.stdout.strip()
 
 
 def at_base(path):

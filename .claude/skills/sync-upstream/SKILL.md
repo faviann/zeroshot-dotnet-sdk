@@ -7,7 +7,7 @@ description: This skill should be used to move the SDK's native Zeroshot binding
 
 The SDK binds exactly one native release. `native.props` holds that pin, and `tools/qualification/NativePin.cs` refuses any tracked file that names a different native version. A bump has two parts. The checklist accounts for every upstream change. The implementation brings the SDK to parity and moves the pin. A **dry run** stops after the checklist.
 
-`scripts/upstream_delta.py` (next to this file) produces the checklist and checks it. Run it with `python3 -I`. It keeps a blobless upstream clone in `${TMPDIR:-/tmp}/zeroshot-upstream`, or wherever `--upstream` points, and fetches only when a release it needs is missing. Don't point it at a checkout someone is working in. Below, `$UP` is that clone and `$WORK` is `${TMPDIR:-/tmp}/sync-upstream`.
+`scripts/upstream_delta.py` (next to this file) produces the checklist and checks it. Run it with `python3 -I` (Python 3.9 or later). It keeps a blobless upstream clone in `${TMPDIR:-/tmp}/zeroshot-upstream`, or wherever `--upstream` points, and fetches only when a release it needs is missing. Don't point it at a checkout someone is working in. Step 2 sets `$UP` to that clone and `$WORK` to the scratch directory, and later steps use both.
 
 ## 1. Pick the target
 
@@ -24,6 +24,7 @@ gh release view <tag> -R the-open-engine/zeroshot --json targetCommitish,isPrere
 ## 2. Generate the checklist
 
 ```bash
+UP="${TMPDIR:-/tmp}/zeroshot-upstream"; WORK="${TMPDIR:-/tmp}/sync-upstream"
 mkdir -p "$WORK"
 python3 -I .claude/skills/sync-upstream/scripts/upstream_delta.py --to <tag> > "$WORK/checklist-<tag>.md"
 ```
