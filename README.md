@@ -173,10 +173,10 @@ re-runs the failed job. Nothing is pushed again.
 ## Versioning
 
 An SDK version mirrors the native Zeroshot release it binds, followed by an SDK revision:
-`<native major>.<native minor>.<native patch>.<revision>`. `10.10.0.1` is the first SDK
+`<native major>.<native minor>.<native patch>.<revision>`. `10.12.0.1` is the first SDK
 release for native 10.12.0. Revisions start at 1, because NuGet shortens `10.12.0.0` to
 `10.12.0`. The only prerelease label is `-preview.<n>`, from 1: `10.12.0.1-preview.1` is a
-preview of revision `10.10.0.1`. The SDK is still a preview: its API can change with any
+preview of revision `10.12.0.1`. The SDK is still a preview: its API can change with any
 new native release.
 
 A revision never breaks: every later revision for the same native release keeps the whole
