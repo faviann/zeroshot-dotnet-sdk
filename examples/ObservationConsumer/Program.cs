@@ -10,7 +10,7 @@ var directory = args[1];
 var phase = args[2];
 var request = NativeJson.DeserializeUtf8<TargetRunRequest>(File.ReadAllBytes(Path.Combine(directory, "observation-request.json")));
 var runId = request.RunId;
-var source = request.Submission.Source;
+var source = request.Submission.Source.Value!;
 using var budget = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 var token = budget.Token;
 await using var native = NativeClient.ForHttp(new() { Origin = new Uri(args[0]) });

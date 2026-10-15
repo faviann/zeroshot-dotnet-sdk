@@ -1,4 +1,86 @@
 #nullable enable
 Microsoft.Extensions.DependencyInjection.ZeroshotServiceCollectionExtensions
+Zeroshot.Native.Contracts.AgentBinding.Lane.get -> Zeroshot.Native.Contracts.Optional<Zeroshot.Native.Contracts.RuntimeLane?>
+Zeroshot.Native.Contracts.AgentBinding.Lane.init -> void
+Zeroshot.Native.Contracts.ClaudeLane
+Zeroshot.Native.Contracts.ClaudeLane.ClaudeLane() -> void
+Zeroshot.Native.Contracts.ClaudeLane.Equals(Zeroshot.Native.Contracts.ClaudeLane? other) -> bool
+Zeroshot.Native.Contracts.ClaudeLane.Provider.get -> Zeroshot.Native.Contracts.ClaudeProvider
+Zeroshot.Native.Contracts.ClaudeLane.Provider.init -> void
+Zeroshot.Native.Contracts.CodexLane
+Zeroshot.Native.Contracts.CodexLane.CodexLane() -> void
+Zeroshot.Native.Contracts.CodexLane.Equals(Zeroshot.Native.Contracts.CodexLane? other) -> bool
+Zeroshot.Native.Contracts.CodexLane.Provider.get -> Zeroshot.Native.Contracts.CodexProvider
+Zeroshot.Native.Contracts.CodexLane.Provider.init -> void
+Zeroshot.Native.Contracts.CopilotLane
+Zeroshot.Native.Contracts.CopilotLane.CopilotLane() -> void
+Zeroshot.Native.Contracts.CopilotLane.Equals(Zeroshot.Native.Contracts.CopilotLane? other) -> bool
+Zeroshot.Native.Contracts.CopilotLane.Provider.get -> Zeroshot.Native.Contracts.CopilotProvider
+Zeroshot.Native.Contracts.CopilotLane.Provider.init -> void
+Zeroshot.Native.Contracts.LoopNode.MaxIterationsInput.get -> Zeroshot.Native.Contracts.Optional<System.Collections.Immutable.ImmutableArray<string!>?>
+Zeroshot.Native.Contracts.LoopNode.MaxIterationsInput.init -> void
+Zeroshot.Native.Contracts.ResolvedGitRemote
+Zeroshot.Native.Contracts.ResolvedGitRemote.Connection.get -> Zeroshot.Native.Contracts.Optional<Zeroshot.Native.Contracts.ConnectionKey?>
+Zeroshot.Native.Contracts.ResolvedGitRemote.Connection.init -> void
+Zeroshot.Native.Contracts.ResolvedGitRemote.Equals(Zeroshot.Native.Contracts.ResolvedGitRemote? other) -> bool
+Zeroshot.Native.Contracts.ResolvedGitRemote.Forge.get -> Zeroshot.Native.Contracts.Optional<Zeroshot.Native.Contracts.SourceForgeIdentity?>
+Zeroshot.Native.Contracts.ResolvedGitRemote.Forge.init -> void
+Zeroshot.Native.Contracts.ResolvedGitRemote.ResolvedGitRemote() -> void
+Zeroshot.Native.Contracts.ResolvedGitRemote.Url.get -> string!
+Zeroshot.Native.Contracts.ResolvedGitRemote.Url.init -> void
+Zeroshot.Native.Contracts.ResolvedSource.Remote.get -> Zeroshot.Native.Contracts.Optional<Zeroshot.Native.Contracts.ResolvedGitRemote?>
+Zeroshot.Native.Contracts.ResolvedSource.Remote.init -> void
+Zeroshot.Native.Contracts.RunSubmission.Source.get -> Zeroshot.Native.Contracts.Optional<Zeroshot.Native.Contracts.ResolvedSource?>
+*REMOVED*Zeroshot.Native.Contracts.RunSubmission.Source.get -> Zeroshot.Native.Contracts.ResolvedSource!
+Zeroshot.Native.Contracts.RuntimeLane
+Zeroshot.Native.Contracts.RuntimeLane.RuntimeLane(Zeroshot.Native.Contracts.RuntimeLane! original) -> void
+Zeroshot.Native.Contracts.SourceForgeIdentity
+Zeroshot.Native.Contracts.SourceForgeIdentity.Equals(Zeroshot.Native.Contracts.SourceForgeIdentity? other) -> bool
+Zeroshot.Native.Contracts.SourceForgeIdentity.Provider.get -> string!
+Zeroshot.Native.Contracts.SourceForgeIdentity.Provider.init -> void
+Zeroshot.Native.Contracts.SourceForgeIdentity.Repository.get -> Zeroshot.Native.Contracts.SourceRepositoryId!
+Zeroshot.Native.Contracts.SourceForgeIdentity.Repository.init -> void
+Zeroshot.Native.Contracts.SourceForgeIdentity.SourceForgeIdentity() -> void
+Zeroshot.RunRequest.Source.get -> Zeroshot.Native.Contracts.Optional<Zeroshot.Native.Contracts.ResolvedSource?>
+*REMOVED*Zeroshot.RunRequest.Source.get -> Zeroshot.Native.Contracts.ResolvedSource!
+override Zeroshot.Native.Contracts.ClaudeLane.<Clone>$() -> Zeroshot.Native.Contracts.ClaudeLane!
+override Zeroshot.Native.Contracts.ClaudeLane.Equals(object? obj) -> bool
+override Zeroshot.Native.Contracts.ClaudeLane.GetHashCode() -> int
+override Zeroshot.Native.Contracts.CodexLane.<Clone>$() -> Zeroshot.Native.Contracts.CodexLane!
+override Zeroshot.Native.Contracts.CodexLane.Equals(object? obj) -> bool
+override Zeroshot.Native.Contracts.CodexLane.GetHashCode() -> int
+override Zeroshot.Native.Contracts.CopilotLane.<Clone>$() -> Zeroshot.Native.Contracts.CopilotLane!
+override Zeroshot.Native.Contracts.CopilotLane.Equals(object? obj) -> bool
+override Zeroshot.Native.Contracts.CopilotLane.GetHashCode() -> int
+override Zeroshot.Native.Contracts.ResolvedGitRemote.<Clone>$() -> Zeroshot.Native.Contracts.ResolvedGitRemote!
+override Zeroshot.Native.Contracts.ResolvedGitRemote.Equals(object? obj) -> bool
+override Zeroshot.Native.Contracts.ResolvedGitRemote.GetHashCode() -> int
+override Zeroshot.Native.Contracts.RuntimeLane.EqualityContract.get -> System.Type!
+override Zeroshot.Native.Contracts.RuntimeLane.Equals(object? obj) -> bool
+override Zeroshot.Native.Contracts.RuntimeLane.GetHashCode() -> int
+override Zeroshot.Native.Contracts.RuntimeLane.PrintMembers(System.Text.StringBuilder! builder) -> bool
+override Zeroshot.Native.Contracts.SourceForgeIdentity.<Clone>$() -> Zeroshot.Native.Contracts.SourceForgeIdentity!
+override Zeroshot.Native.Contracts.SourceForgeIdentity.Equals(object? obj) -> bool
+override Zeroshot.Native.Contracts.SourceForgeIdentity.GetHashCode() -> int
+override abstract Zeroshot.Native.Contracts.RuntimeLane.<Clone>$() -> Zeroshot.Native.Contracts.RuntimeLane!
+override sealed Zeroshot.Native.Contracts.ClaudeLane.Equals(Zeroshot.Native.Contracts.RuntimeLane? other) -> bool
+override sealed Zeroshot.Native.Contracts.CodexLane.Equals(Zeroshot.Native.Contracts.RuntimeLane? other) -> bool
+override sealed Zeroshot.Native.Contracts.CopilotLane.Equals(Zeroshot.Native.Contracts.RuntimeLane? other) -> bool
+override sealed Zeroshot.Native.Contracts.ResolvedGitRemote.Equals(Zeroshot.Native.Contracts.NativeContract? other) -> bool
+override sealed Zeroshot.Native.Contracts.RuntimeLane.Equals(Zeroshot.Native.Contracts.NativeContract? other) -> bool
+override sealed Zeroshot.Native.Contracts.SourceForgeIdentity.Equals(Zeroshot.Native.Contracts.NativeContract? other) -> bool
 static Microsoft.Extensions.DependencyInjection.ZeroshotServiceCollectionExtensions.AddZeroshotClient(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Zeroshot.ZeroshotClientOptions!>! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.ZeroshotServiceCollectionExtensions.AddZeroshotClient(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Zeroshot.ZeroshotClientOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Zeroshot.Native.Contracts.ClaudeLane.operator !=(Zeroshot.Native.Contracts.ClaudeLane? left, Zeroshot.Native.Contracts.ClaudeLane? right) -> bool
+static Zeroshot.Native.Contracts.ClaudeLane.operator ==(Zeroshot.Native.Contracts.ClaudeLane? left, Zeroshot.Native.Contracts.ClaudeLane? right) -> bool
+static Zeroshot.Native.Contracts.CodexLane.operator !=(Zeroshot.Native.Contracts.CodexLane? left, Zeroshot.Native.Contracts.CodexLane? right) -> bool
+static Zeroshot.Native.Contracts.CodexLane.operator ==(Zeroshot.Native.Contracts.CodexLane? left, Zeroshot.Native.Contracts.CodexLane? right) -> bool
+static Zeroshot.Native.Contracts.CopilotLane.operator !=(Zeroshot.Native.Contracts.CopilotLane? left, Zeroshot.Native.Contracts.CopilotLane? right) -> bool
+static Zeroshot.Native.Contracts.CopilotLane.operator ==(Zeroshot.Native.Contracts.CopilotLane? left, Zeroshot.Native.Contracts.CopilotLane? right) -> bool
+static Zeroshot.Native.Contracts.ResolvedGitRemote.operator !=(Zeroshot.Native.Contracts.ResolvedGitRemote? left, Zeroshot.Native.Contracts.ResolvedGitRemote? right) -> bool
+static Zeroshot.Native.Contracts.ResolvedGitRemote.operator ==(Zeroshot.Native.Contracts.ResolvedGitRemote? left, Zeroshot.Native.Contracts.ResolvedGitRemote? right) -> bool
+static Zeroshot.Native.Contracts.RuntimeLane.operator !=(Zeroshot.Native.Contracts.RuntimeLane? left, Zeroshot.Native.Contracts.RuntimeLane? right) -> bool
+static Zeroshot.Native.Contracts.RuntimeLane.operator ==(Zeroshot.Native.Contracts.RuntimeLane? left, Zeroshot.Native.Contracts.RuntimeLane? right) -> bool
+static Zeroshot.Native.Contracts.SourceForgeIdentity.operator !=(Zeroshot.Native.Contracts.SourceForgeIdentity? left, Zeroshot.Native.Contracts.SourceForgeIdentity? right) -> bool
+static Zeroshot.Native.Contracts.SourceForgeIdentity.operator ==(Zeroshot.Native.Contracts.SourceForgeIdentity? left, Zeroshot.Native.Contracts.SourceForgeIdentity? right) -> bool
+virtual Zeroshot.Native.Contracts.RuntimeLane.Equals(Zeroshot.Native.Contracts.RuntimeLane? other) -> bool

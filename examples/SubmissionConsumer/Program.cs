@@ -23,7 +23,7 @@ var submission = new RunSubmission
     Title = new("Complete asset admission witness"), Graph = graph,
     InitialInput = JsonSerializer.SerializeToElement(new { task = "Test-owned admission only; no live provider or forge credentials." }),
     Runtime = implicitRuntime,
-    Source = new() { Repository = new("acme/project"), Branch = new("main"), Revision = new(new string('a', 40)) },
+    Source = new ResolvedSource { Repository = new("acme/project"), Branch = new("main"), Revision = new(new string('a', 40)) },
     SubmissionKey = new("complete-normalization-witness")
 };
 var proposed = new RunId("0195af77-1000-7000-8000-000000000010");

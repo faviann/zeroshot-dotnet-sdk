@@ -20,7 +20,7 @@ Check(accepted.Outcome == NativeAttemptOutcome.Acknowledged && accepted.Acknowle
 RunStatusResult active;
 while (true)
 {
-    active = await connection.Runs.StatusAsync(request.RunId, request.Submission.Source, cancellationToken: token);
+    active = await connection.Runs.StatusAsync(request.RunId, request.Submission.Source.Value, cancellationToken: token);
     if (active.Status is RunningRunStatus { ActiveExecutions.Length: > 0 } &&
         new FileInfo(Path.Combine(directory, "attachment-provider-ready")).Length > 0) break;
     Check(active.Status is not FinishedRunStatus, "controlled worker remains active: " + JsonSerializer.Serialize(Wire(active)));
@@ -28,7 +28,7 @@ while (true)
 }
 
 await using var watch = await connection.Runs.WatchAsync(new() { RunId = request.RunId, FromCursor = active.AtCursor },
-    request.Submission.Source, token);
+    request.Submission.Source.Value, token);
 var force = await connection.Runs.ForceAsync(request.RunId, cancellationToken: token);
 Check(force is { Outcome: NativeAttemptOutcome.Acknowledged, Failure: null, Response: not null }, "acknowledged force: " + force.Failure?.Message);
 var acknowledged = force.Response!;
@@ -45,7 +45,7 @@ await foreach (var record in watch.ReadAllAsync(token))
 }
 Check(records is [.., { Status: FinishedRunStatus { TerminalResult: FailedTerminalResult { Reason.Value: "force_stopped" } } }] &&
     records.SkipLast(1).Any(record => record.Status is StoppingRunStatus), "durable stopping history before force_stopped terminal");
-var terminal = await connection.Runs.StatusAsync(request.RunId, request.Submission.Source, cancellationToken: token);
+var terminal = await connection.Runs.StatusAsync(request.RunId, request.Submission.Source.Value, cancellationToken: token);
 Check(terminal.Status is FinishedRunStatus { TerminalResult: FailedTerminalResult { Reason.Value: "force_stopped" } }, "force_stopped terminal status");
 
 var repeated = await connection.Runs.ForceAsync(request.RunId, cancellationToken: token);

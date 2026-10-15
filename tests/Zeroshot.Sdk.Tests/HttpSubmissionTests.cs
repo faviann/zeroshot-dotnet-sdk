@@ -37,7 +37,7 @@ public sealed class HttpSubmissionTests
             NativeAttempt<TargetRunReceipt> shared = attempt;
             Check(shared.Outcome == NativeAttemptOutcome.Acknowledged && shared.Failure is null);
             Check(shared.Origin == client.Origin && shared.Operation == "target.submit" && shared.CorrelationId != Guid.Empty);
-            Check(attempt.Prepared.RunId == attempt.ProposedRunId && attempt.Prepared.Submission.Source == Typed().Submission.Source);
+            Check(attempt.Prepared.RunId == attempt.ProposedRunId && attempt.Prepared.Submission.Source.Equals(Typed().Submission.Source));
             Check(attempt.ProposedRunId.Value == Proposed && attempt.AcknowledgedRunId!.Value == Acknowledged && attempt.RunIdsMatch == false);
         }
         Check(handler.Calls == 2);

@@ -92,7 +92,7 @@ public sealed class ContractTests
         Check(export.SequenceEqual(expected), "Import changed retained bytes.");
         Array.Fill(export, (byte)'x');
         Check(prepared.ExportUtf8().SequenceEqual(expected), "Export exposed mutable retained storage.");
-        Check(prepared.Submission.Source.Revision.Value == new string('a', 40), "Source changed.");
+        Check(prepared.Submission.Source.Value!.Revision.Value == new string('a', 40), "Source changed.");
         Check(prepared.Submission.SubmissionKey.Value == "debug-fixture", "Key changed.");
         Check(prepared.Submission.InitialInput.GetProperty("z").GetString() == "must-not-be-retained", "Input changed.");
         Check(!prepared.ToString().Contains("must-not-be-retained") && !prepared.Submission.ToString().Contains("must-not-be-retained"), "Default formatting exposed payload.");

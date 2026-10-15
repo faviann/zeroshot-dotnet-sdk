@@ -43,6 +43,6 @@ var retained = prepared.ExportUtf8();
 var imported = PreparedSubmission.ImportUtf8(retained);
 if (!retained.SequenceEqual(imported.ExportUtf8()) || graphCopy.Root is not SucceedNode ||
     imported.Submission.SubmissionKey.Value != submission.SubmissionKey.Value ||
-    imported.Submission.Source != submission.Source)
+    !imported.Submission.Source.Equals(submission.Source))
     throw new InvalidOperationException("Local contract round-trip failed.");
 Console.WriteLine("Created, serialized and reimported typed definitions and an exact prepared request locally.");

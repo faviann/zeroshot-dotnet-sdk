@@ -766,6 +766,21 @@
               "minimum": 1,
               "type": "integer"
             },
+            "maxIterationsInput": {
+              "description": "Optional initial-input path that replaces `max_iterations` for an admitted run.",
+              "items": {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z_][A-Za-z0-9_.-]*$",
+                "type": "string"
+              },
+              "maxItems": 64,
+              "minItems": 1,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
             "name": {
               "maxLength": 128,
               "minLength": 1,
@@ -1268,6 +1283,16 @@
               "const": "agent",
               "type": "string"
             },
+            "lane": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RuntimeLane"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "model": {
               "maxLength": 2048,
               "minLength": 1,
@@ -1567,7 +1592,85 @@
       ],
       "type": "string"
     },
+    "ResolvedGitRemote": {
+      "additionalProperties": false,
+      "description": "Credential-free Git locator. Git effects use this transport; forge operations use `forge`.",
+      "properties": {
+        "connection": {
+          "description": "Explicit source-only connection authority; omitted for public or native local Git.",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "forge": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceForgeIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "url": {
+          "allOf": [
+            {
+              "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+            },
+            {
+              "if": {
+                "pattern": "://"
+              },
+              "then": {
+                "pattern": "^(https|ssh)://"
+              }
+            }
+          ],
+          "maxLength": 2048,
+          "minLength": 1,
+          "not": {
+            "pattern": "^[A-Za-z]:"
+          },
+          "pattern": "^(?:https://(?:\\[[A-Za-z0-9%:._-]+\\]|[^/@:?#\\\\\\s-][^/@:?#\\\\\\s]*)(?::[0-9]+)?(?:/[^?#\\\\\\s]*)?|ssh://(?:[^/@:?#\\\\\\s]+@)?(?:\\[[A-Za-z0-9%:._-]+\\]|[^/@:?#\\\\\\s-][^/@:?#\\\\\\s]*)(?::[0-9]+)?(?:/[^?#\\\\\\s]*)?|(?:[^/@:?#\\\\\\s]+@)?(?:\\[[A-Za-z0-9%:._-]+\\]|[^/@:?#\\\\\\s-][^/@:?#\\\\\\s]*):(?:[^/:?#\\\\\\s][^?#\\\\\\s]*|/(?:[^/?#\\\\\\s][^?#\\\\\\s]*)?))$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "type": "object"
+    },
     "ResolvedSource": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ResolvedSourceWire"
+        },
+        {
+          "else": {
+            "properties": {
+              "repository": {
+                "pattern": "^[A-Za-z0-9._-]{1,100}/[A-Za-z0-9._-]{1,100}$"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "remote": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "remote"
+            ]
+          }
+        }
+      ]
+    },
+    "ResolvedSourceWire": {
       "additionalProperties": false,
       "properties": {
         "branch": {
@@ -1575,14 +1678,25 @@
           "minLength": 1,
           "type": "string"
         },
+        "remote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResolvedGitRemote"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "repository": {
           "maxLength": 255,
-          "minLength": 3,
-          "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$",
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$",
           "type": "string"
         },
         "revision": {
-          "pattern": "^[0-9a-f]{40}$",
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$",
           "type": "string"
         }
       },
@@ -1623,7 +1737,14 @@
           "$ref": "#/$defs/RuntimePlan"
         },
         "source": {
-          "$ref": "#/$defs/ResolvedSource"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResolvedSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "submissionKey": {
           "maxLength": 256,
@@ -1643,7 +1764,6 @@
         "graph",
         "initialInput",
         "runtime",
-        "source",
         "submissionKey"
       ],
       "type": "object"
@@ -1696,6 +1816,62 @@
         }
       },
       "type": "object"
+    },
+    "RuntimeLane": {
+      "description": "One harness and provider pair: the run-level default, or an agent node's override.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "harness": {
+              "const": "copilot",
+              "type": "string"
+            },
+            "provider": {
+              "$ref": "#/$defs/CopilotProvider"
+            }
+          },
+          "required": [
+            "harness",
+            "provider"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "harness": {
+              "const": "codex",
+              "type": "string"
+            },
+            "provider": {
+              "$ref": "#/$defs/CodexProvider"
+            }
+          },
+          "required": [
+            "harness",
+            "provider"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "harness": {
+              "const": "claude",
+              "type": "string"
+            },
+            "provider": {
+              "$ref": "#/$defs/ClaudeProvider"
+            }
+          },
+          "required": [
+            "harness",
+            "provider"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "RuntimePlan": {
       "oneOf": [
@@ -1800,6 +1976,29 @@
         "node_instance"
       ],
       "type": "string"
+    },
+    "SourceForgeIdentity": {
+      "additionalProperties": false,
+      "description": "Optional forge identity selects one registered source-code adapter.",
+      "properties": {
+        "provider": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$",
+          "type": "string"
+        },
+        "repository": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "repository"
+      ],
+      "type": "object"
     },
     "StructuralBounds": {
       "additionalProperties": false,

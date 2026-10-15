@@ -21,7 +21,7 @@ RunStatusResult beforeAttach;
 ExecutionRef execution;
 while (true)
 {
-    beforeAttach = await connection.Runs.StatusAsync(request.RunId, request.Submission.Source, cancellationToken: token);
+    beforeAttach = await connection.Runs.StatusAsync(request.RunId, request.Submission.Source.Value, cancellationToken: token);
     if (beforeAttach.Status is RunningRunStatus { ActiveExecutions: [var active] } &&
         new FileInfo(Path.Combine(directory, "attachment-provider-ready")).Length > 0)
     { execution = active.Execution; break; }
@@ -61,7 +61,7 @@ Check(completion is { Origin: NativeSubscriptionOrigin.ServerClosed, ServerClose
 RunStatusResult afterSettlement;
 do
 {
-    afterSettlement = await connection.Runs.StatusAsync(request.RunId, request.Submission.Source, cancellationToken: token);
+    afterSettlement = await connection.Runs.StatusAsync(request.RunId, request.Submission.Source.Value, cancellationToken: token);
     if (afterSettlement.Status is not FinishedRunStatus) await Task.Delay(50, token);
 } while (afterSettlement.Status is not FinishedRunStatus);
 Check(afterSettlement.Status is FinishedRunStatus { TerminalResult: SucceededTerminalResult }, "controlled graph completes successfully");
