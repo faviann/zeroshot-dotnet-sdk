@@ -57,7 +57,7 @@ Check(unknown is { Outcome: NativeAttemptOutcome.Rejected, Failure: NativeOecpEx
 // or the common wait. Which path native took is recorded, not assumed.
 var readyMarker = Path.Combine(directory, "attachment-provider-ready");
 File.WriteAllBytes(readyMarker, []);
-await using var sdk = new ZeroshotClient(native, NativeBinding.CallerSupplied("10.10.0", "3ee1192cec359a0b997f464e703a936e8b67d63c"));
+await using var sdk = new ZeroshotClient(native, NativeBinding.CallerSupplied("10.12.0", "928de8ff918488749ca9d23e0a7349873401b7f7"));
 var sdkRequest = NativeJson.DeserializeUtf8<TargetRunRequest>(File.ReadAllBytes(Path.Combine(directory, "force-sdk-request.json")));
 var prepared = PreparedSubmission.Create(sdkRequest.RunId, sdkRequest.Submission);
 // The outer connection values are supplied separately from the prepared request, as the SDK requires.

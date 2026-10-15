@@ -12,9 +12,9 @@ backslashes fail before dispatch, including paths hidden by `System.Uri`
 normalization. Discovery sends one GET to `/.well-known/zeroshot-native-v2` with no
 body or library-added credentials. There is no HEAD preflight or application retry.
 
-Discovery models retain all fixed fields, OAuth/login descriptors and all eight
-known extension descriptors at native 10.10.0 source
-`3ee1192cec359a0b997f464e703a936e8b67d63c`. Use `NativeJson` for validated serialization.
+Discovery models retain all fixed fields, OAuth/login descriptors and all ten
+known extension descriptors at native 10.12.0 source
+`928de8ff918488749ca9d23e0a7349873401b7f7`. Use `NativeJson` for validated serialization.
 The hosted-runs and hosted-workspace-recovery descriptor fields use snake_case;
 history, connections, profiles and merge plans use their native camelCase fields.
 Known objects reject unknown fields; unknown names inside `extensions` are ignored
@@ -202,7 +202,8 @@ if (attempt.Outcome == NativeAttemptOutcome.Acknowledged)
 
 `Target.SubmitAttemptAsync(TargetRunRequest, ...)` sends a typed full native envelope.
 The retained overload accepts `PreparedSubmission` plus `TargetRunCredentials` for
-current connection values, optional resolver and optional GitHub token. Both accept
+current connection values, optional resolver, optional GitHub token and optional
+`GitTransportCredentials` (HTTPS or SSH) for a source with a generic Git remote. Both accept
 separate `TargetControlCredentials` for the HTTP Authorization header when needed.
 The operation sends exactly one POST to `/native-v2/run`; it does not use discovery's
 run path or OECP `run/submit`, refresh credentials, or resend on any failure.
@@ -317,7 +318,7 @@ credentials omits values, bearers and remote problem text; explicit property
 access, `NativeJson` serialization and opted-in raw diagnostics reveal them.
 
 `HttpConnectionTests.cs` covers every operation against controlled hosted
-authorities. Stock native 10.10.0 only consumes these routes and serves none, so
+authorities. Stock native 10.12.0 only consumes these routes and serves none, so
 the native witness cannot exercise them. Live hosted interoperability is
 unverified.
 
@@ -369,7 +370,11 @@ resolved source and submission key exactly as supplied. A null `Environment` omi
 the field so the host may apply its default, while an empty `RuntimeEnvironment`
 explicitly selects the base environment. `Connections` is required on every run,
 may be empty, and uses the static-value bounds shared with submission. Profile runs
-have no connection resolver. `GithubToken` is optional. The acknowledged
+have no connection resolver. `GithubToken` and `GitCredentials` are optional. As in native,
+`SetAsync` refuses a runtime whose agent bindings carry a `lane` unless discovery advertises
+exactly `openengine.node-runtime-lanes/v1`, and `RunAsync` refuses a source with a `remote`
+or a 64-character revision, or any `GitCredentials`, unless it advertises exactly
+`openengine.git-transport/v1`. Another kind counts as absent, and nothing is sent. The acknowledged
 `TargetRunReceipt.RunId` can differ from the proposed one because of native
 deduplication; comparing them is the caller's job.
 
@@ -387,7 +392,7 @@ the GitHub token, bearers and remote problem text. Explicit property access and
 `NativeJson` serialization reveal them.
 
 `HttpProfileTests.cs` covers every operation against controlled hosted authorities.
-Stock native 10.10.0 only consumes these routes and serves none, so the native
+Stock native 10.12.0 only consumes these routes and serves none, so the native
 witness cannot exercise them. Live hosted interoperability is unverified.
 
 ## Hosted run lifecycle
@@ -457,7 +462,7 @@ cancellation after dispatch is `Unknown`. `NotSent` means nothing was dispatched
 Results must fit in 64 KiB (or the smaller configured limit).
 
 `HttpHostedRunTests.cs` covers every route and failure mode against controlled hosted
-peers. Stock native 10.10.0 only consumes these routes and serves none, so the native
+peers. Stock native 10.12.0 only consumes these routes and serves none, so the native
 witness cannot exercise them. Live hosted interoperability is unverified.
 
 ## Hosted merge plans
@@ -519,7 +524,7 @@ need not be terminal. Results may be up to 1 MiB (or the smaller configured limi
 native's merge-plan bound.
 
 `HttpMergePlanTests.cs` covers the three operations against controlled hosted
-authorities. Stock native 10.10.0 serves no merge-plan routes and refuses them for direct
+authorities. Stock native 10.12.0 serves no merge-plan routes and refuses them for direct
 targets, so the native witness cannot exercise them. Live hosted interoperability is
 unverified.
 
@@ -549,7 +554,9 @@ segment and no query. Native compiles all three together. The run ID in the path
 encoded and restricted as for hosted runs, and the body carries the same ID. Direct and
 private targets recover over OECP; their `workspace_recovery` and
 `workspace_checkpoints` kinds do not enable these routes. Absent or malformed
-descriptors, unaddressable run IDs and invalid requests throw without dispatch.
+descriptors, unaddressable run IDs and invalid requests throw without dispatch. A resume
+with `GitCredentials` also throws without dispatch unless discovery advertises exactly
+`openengine.git-transport/v1`, as native's hosted access check does.
 
 `CheckpointsAsync` returns the page or throws `NativeHttpException`; a page for another
 run, beyond the effective limit or with a `nextAfter` that is not its last checkpoint
@@ -562,7 +569,7 @@ other than the requested ones, or another run's discard) is `Unknown`. Results m
 in 64 KiB (or the smaller configured limit), native's hosted bound.
 
 `HttpHostedRecoveryTests.cs` covers the three operations against controlled hosted peers
-with source-backed fixtures. Stock native 10.10.0 only consumes these routes and serves
+with source-backed fixtures. Stock native 10.12.0 only consumes these routes and serves
 none, so the native witness cannot exercise them. Live hosted interoperability is
 unverified.
 
@@ -652,7 +659,7 @@ controls). A token native would accept but that contains spaces or non-ASCII
 characters cannot be verified through this binding.
 
 `revocationEndpoint` stays visible on discovery and `OAuthMetadata.RevocationEndpoint`
-and is validated like native. Native 10.10.0 never calls it, so there is no revocation
+and is validated like native. Native 10.12.0 never calls it, so there is no revocation
 or logout operation; the coverage ledger keeps it as an advertised-only gap.
 
 Default formatting of device authorizations, tokens, attempts,
@@ -661,7 +668,7 @@ tokens and remote error text. Explicit property access and `NativeJson`
 serialization reveal them.
 
 `HttpOAuthTests.cs` covers every flow and failure against controlled hosted
-authorities without production credentials. Stock native 10.10.0 consumes these
+authorities without production credentials. Stock native 10.12.0 consumes these
 endpoints but serves none, so the native witness cannot exercise them. Live hosted
 interoperability is unverified.
 
@@ -726,7 +733,7 @@ the client, results and exceptions omits the bearer and resolved values.
 table, malformed/oversized/declared-oversized/truncated bodies, the deadline and cancellation, and
 controlled HTTPS endpoints: an off-target resolver that receives only its own
 bearer, a 307 whose `Location` is never contacted, and a redirect that a
-non-compliant supplied client follows, still classified `InvalidResponse`. Stock native 10.10.0 only
+non-compliant supplied client follows, still classified `InvalidResponse`. Stock native 10.12.0 only
 calls this contract and serves none, so no native witness applies.
 
 ## Run history
@@ -870,7 +877,7 @@ malformed problem, a lost reply, a deadline or post-dispatch cancellation is
 
 `PrivateBootstrapTests.cs` covers the exact request, refusal classification,
 unknown-effect contact and pre-dispatch refusals. The
-[native witness](../../tools/native-witness/README.md) runs a stock 10.10.0
+[native witness](../../tools/native-witness/README.md) runs a stock 10.12.0
 private-mode target with isolated key and capability material. It proves invalid,
 accepted and closed outcomes.
 

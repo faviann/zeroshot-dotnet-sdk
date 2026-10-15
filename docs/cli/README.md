@@ -44,11 +44,11 @@ then the one native release that library binds:
 ```text
 zeroshot-dotnet 10.10.0.1-preview.1+<commit>
 Zeroshot.Client 10.10.0.1-preview.1+<commit>
-native Zeroshot 10.10.0 3ee1192cec359a0b997f464e703a936e8b67d63c
+native Zeroshot 10.12.0 928de8ff918488749ca9d23e0a7349873401b7f7
 ```
 
 These are SDK versions. Each one [mirrors](../../README.md#versioning) the native release
-it supports, followed by an SDK revision: `10.10.0.1` supports native 10.10.0 only, as the
+it supports, followed by an SDK revision: `10.12.0.1` supports native 10.12.0 only, as the
 [native compatibility table](../../README.md#native-compatibility) lists, and its
 configurations declare that release. The CLI is a preview.
 
@@ -199,7 +199,7 @@ Secret values are never stored in this file. Unknown or duplicate fields are ref
 {
   "schema": "zeroshot-dotnet/target-config/v1",
   "target": "https://target.example/",
-  "nativeBinding": { "provenance": "caller-supplied", "release": "10.10.0", "sourceRevision": "3ee1192cec359a0b997f464e703a936e8b67d63c" },
+  "nativeBinding": { "provenance": "caller-supplied", "release": "10.12.0", "sourceRevision": "928de8ff918488749ca9d23e0a7349873401b7f7" },
   "credentials": {
     "targetBearerEnvironment": "ZEROSHOT_TARGET_TOKEN",
     "githubTokenEnvironment": "ZEROSHOT_GITHUB_TOKEN",

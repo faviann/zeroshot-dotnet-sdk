@@ -126,7 +126,7 @@ Console.WriteLine(JsonSerializer.Serialize(new { phase, status = Wire(status), r
 static async Task<object> SdkReplay(NativeClient native, RunId runId, string directory, string phase,
     List<RunLogEventNotification> baselineLogs, List<RunWatchEventNotification> baselineWatch, CancellationToken token)
 {
-    await using var sdk = new ZeroshotClient(native, NativeBinding.CallerSupplied("10.10.0", "3ee1192cec359a0b997f464e703a936e8b67d63c"));
+    await using var sdk = new ZeroshotClient(native, NativeBinding.CallerSupplied("10.12.0", "928de8ff918488749ca9d23e0a7349873401b7f7"));
     var run = sdk.GetRun(runId);
     var file = Path.Combine(directory, "observation-checkpoint.json");
     if (phase == "live")

@@ -1,7 +1,7 @@
 # Browser dashboard routes
 
-`native.Dashboard` binds native's browser UI router at native 10.10.0 / source
-`3ee1192cec359a0b997f464e703a936e8b67d63c` (`profile_ui.rs`, `profile_ui/server.rs`,
+`native.Dashboard` binds native's browser UI router at native 10.12.0 / source
+`928de8ff918488749ca9d23e0a7349873401b7f7` (`profile_ui.rs`, `profile_ui/server.rs`,
 `workspace.rs`). Construct the native client with the UI's configured public origin:
 `zeroshot target serve --public-origin` for a direct target's UI mount, or the
 loopback origin of `zeroshot ui`. A target built without UI support answers these
@@ -47,7 +47,8 @@ spellings are rejected before dispatch. A missing asset is native's bare 404:
 ## Contracts
 
 `DashboardBootstrap` holds `version` 1, the materialized templates (`GraphSpec` plus
-`NodeRuntimeBinding` defaults), worker options tagged by `runtimeKind`, native's live
+editor runtime-binding drafts kept as JSON, because a worker draft can have a blank
+model), worker options tagged by `runtimeKind`, native's live
 `runtimeSchema` document and the workspace. Workspace kind is `local` or `target`;
 its ID is native's canonical workspace UUID. The agent worker's `runtimeBinding` is
 native's blank editor binding (`model: ""`), so it stays JSON; git-delivery workers
